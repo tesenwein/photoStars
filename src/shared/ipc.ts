@@ -58,7 +58,7 @@ export interface PhotoStarsApi {
   ping: () => Promise<string>;
   selectFolder: () => Promise<string | undefined>;
   /** Scan a folder and return the image list; previews/analysis stream via events. */
-  ingestFolder: (folder: string, opts?: { burstWindowSec?: number }) => Promise<PhotoImage[]>;
+  ingestFolder: (folder: string) => Promise<PhotoImage[]>;
   onPreviewReady: (cb: (payload: PreviewReadyPayload) => void) => () => void;
   onAnalysisReady: (cb: (payload: AnalysisReadyPayload) => void) => () => void;
   /** Write star ratings to disk. Only ever called on explicit user Apply. */

@@ -9,7 +9,7 @@ import {
 const api: PhotoStarsApi = {
   ping: () => ipcRenderer.invoke(IpcChannels.ping),
   selectFolder: () => ipcRenderer.invoke(IpcChannels.selectFolder),
-  ingestFolder: (folder, opts) => ipcRenderer.invoke(IpcChannels.ingestFolder, folder, opts),
+  ingestFolder: (folder) => ipcRenderer.invoke(IpcChannels.ingestFolder, folder),
   clearCache: () => ipcRenderer.invoke(IpcChannels.clearCache),
   onPreviewReady: (cb) => {
     const listener = (_e: unknown, payload: PreviewReadyPayload) => cb(payload);

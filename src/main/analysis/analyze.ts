@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { computeSharpness } from './sharpness';
+import { computeSharpness, computeRegionSharpness } from './sharpness';
 import { computeExposure } from './exposure';
 import { sidecar } from '../sidecar/sidecarManager';
 import { readAnalysisCache, writeAnalysisCache } from './analysisCache';
@@ -13,6 +13,10 @@ export interface AnalysisResult {
   exposureHint: ExposureHint;
   eyeStatus?: EyeStatus;
   aestheticsScore?: number;
+  /** Laplacian variance inside the detected face region (portrait only). */
+  faceSharpnessScore?: number;
+  /** faceSharpness / wholeImageSharpness — >1 means subject is sharper than background. */
+  bokehRatio?: number;
   /** True when faces or significant skin tones detected — uses portrait weights. */
   isPortrait?: boolean;
   /** Continuous 0–1 quality (pre-rounding) used for whole-shoot relative ranking. */
@@ -32,14 +36,29 @@ function computeQuality(
   sharpNorm: number,
   exposureScore: number,
   aestheticsScore: number | undefined,
-  isPortrait: boolean
+  isPortrait: boolean,
+  faceSharpNorm?: number,
+  bokehRatio?: number
 ): number {
   const weights = isPortrait ? config.portraitWeights : config.weights;
   const aestheticNorm = aestheticsScore !== undefined ? (aestheticsScore - 1) / 9 : 0.5;
-  return (
-    weights.sharpness * sharpNorm +
+
+  // For portraits with a detected face, blend whole-image sharpness (30%)
+  // with face-region sharpness (70%) — a sharp face matters most.
+  const effectiveSharp = (isPortrait && faceSharpNorm !== undefined)
+    ? faceSharpNorm * 0.7 + sharpNorm * 0.3
+    : sharpNorm;
+
+  // Bokeh bonus: well-separated subject (face sharper than background) adds up to +0.06.
+  const bokehBonus = (isPortrait && bokehRatio !== undefined && bokehRatio > 1)
+    ? Math.min(0.06, (bokehRatio - 1) * 0.06)
+    : 0;
+
+  return Math.min(1,
+    weights.sharpness * effectiveSharp +
     weights.exposure * (exposureScore / 100) +
-    weights.aesthetics * aestheticNorm
+    weights.aesthetics * aestheticNorm +
+    bokehBonus
   );
 }
 
@@ -49,15 +68,20 @@ function deriveStars(
   aestheticsScore: number | undefined,
   eyeStatus: EyeStatus | undefined,
   burstRank: number | undefined,
-  isPortrait: boolean
+  isPortrait: boolean,
+  faceSharpNorm?: number,
+  bokehRatio?: number
 ): number {
   const { hardCaps } = config;
 
   // Hard cap: severely blurry images are never above blurryMaxStars.
-  const rawVariance = sharpNorm * (config.sharpness.ceil - config.sharpness.floor) + config.sharpness.floor;
-  const blurryCap = rawVariance < hardCaps.blurryVariance ? hardCaps.blurryMaxStars : 5;
+  // For portraits use face sharpness for the cap if available.
+  const capVariance = (isPortrait && faceSharpNorm !== undefined)
+    ? faceSharpNorm * (config.sharpness.ceil - config.sharpness.floor) + config.sharpness.floor
+    : sharpNorm * (config.sharpness.ceil - config.sharpness.floor) + config.sharpness.floor;
+  const blurryCap = capVariance < hardCaps.blurryVariance ? hardCaps.blurryMaxStars : 5;
 
-  const quality = computeQuality(sharpNorm, exposureScore, aestheticsScore, isPortrait);
+  const quality = computeQuality(sharpNorm, exposureScore, aestheticsScore, isPortrait, faceSharpNorm, bokehRatio);
 
   // Power curve: compresses low-quality scores so most images land at 0–2★.
   const curved = Math.pow(Math.max(0, quality), config.qualityPower);
@@ -86,12 +110,14 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
 
   const cached = await readAnalysisCache(previewPath, mtime);
   if (cached) {
-    const sharpNorm = normalizeSharpness(cached.sharpnessScore);
+    const sharpNorm     = normalizeSharpness(cached.sharpnessScore);
+    const faceSharpNorm = cached.faceSharpnessScore !== undefined
+      ? normalizeSharpness(cached.faceSharpnessScore) : undefined;
     const portrait = cached.isPortrait ?? false;
-    cached.qualityScore = computeQuality(sharpNorm, cached.exposureScore, cached.aestheticsScore, portrait);
+    cached.qualityScore = computeQuality(sharpNorm, cached.exposureScore, cached.aestheticsScore, portrait, faceSharpNorm, cached.bokehRatio);
     cached.derivedStars = deriveStars(
       sharpNorm, cached.exposureScore, cached.aestheticsScore,
-      cached.eyeStatus, burstRank, portrait
+      cached.eyeStatus, burstRank, portrait, faceSharpNorm, cached.bokehRatio
     );
     return cached;
   }
@@ -115,15 +141,31 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
   // Detect portrait subject via face detection or skin-tone fraction.
   const portrait = await isPortraitSubject(previewPath, eyeStatus?.facesDetected ?? 0);
 
+  // Face-region sharpness + bokeh ratio (portrait only, when face bbox is available).
+  let faceSharpnessScore: number | undefined;
+  let bokehRatio: number | undefined;
+  if (portrait && eyeStatus?.faceBbox) {
+    try {
+      faceSharpnessScore = await computeRegionSharpness(previewPath, eyeStatus.faceBbox);
+      if (sharpnessScore > 0 && faceSharpnessScore > 0) {
+        bokehRatio = faceSharpnessScore / sharpnessScore;
+      }
+    } catch { /* non-fatal */ }
+  }
+  const faceSharpNorm = faceSharpnessScore !== undefined
+    ? normalizeSharpness(faceSharpnessScore) : undefined;
+
   const result: AnalysisResult = {
     sharpnessScore,
-    exposureScore:  exposure.score,
-    exposureHint:   exposure.hint,
+    exposureScore:      exposure.score,
+    exposureHint:       exposure.hint,
     eyeStatus,
     aestheticsScore,
+    faceSharpnessScore,
+    bokehRatio,
     isPortrait:   portrait,
-    qualityScore: computeQuality(sharpNorm, exposure.score, aestheticsScore, portrait),
-    derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank, portrait),
+    qualityScore: computeQuality(sharpNorm, exposure.score, aestheticsScore, portrait, faceSharpNorm, bokehRatio),
+    derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank, portrait, faceSharpNorm, bokehRatio),
   };
 
   void writeAnalysisCache(previewPath, mtime, result);

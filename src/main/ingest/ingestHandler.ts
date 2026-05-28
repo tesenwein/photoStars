@@ -8,8 +8,7 @@ import {
 } from '../../shared/ipc';
 import { scanFolder } from './scan';
 import { generatePreviews, clearPreviewCache } from './preview';
-import { readTimestamps } from './burstDetector';
-import { bucketBursts } from '../../shared/burst';
+import { readTimestamp } from './burstDetector';
 import { analyzeImage } from '../analysis/analyze';
 import { writeRating } from '../exiftool/writeRating';
 
@@ -24,44 +23,29 @@ export function registerIngestHandlers(): void {
     await clearPreviewCache();
   });
 
-  ipcMain.handle(IpcChannels.ingestFolder, async (event, folder: string, opts?: { burstWindowSec?: number }) => {
-    const burstWindowMs = (opts?.burstWindowSec ?? 3) * 1000;
+  ipcMain.handle(IpcChannels.ingestFolder, async (event, folder: string) => {
     const images = await scanFolder(folder);
     const sender = event.sender;
 
-    // Read capture timestamps once, attach them to the images, and do the
-    // initial burst grouping. Timestamps travel to the renderer so it can
-    // re-bucket bursts live when the window slider changes — no re-ingest.
-    const items = await readTimestamps(images);
-    const tsByPath = new Map(items.map((i) => [i.path, i.ts]));
-    for (const img of images) {
-      const ts = tsByPath.get(img.path);
-      img.timestamp = ts !== undefined && ts >= 0 ? ts : undefined;
-    }
-    for (const [path, info] of bucketBursts(items, burstWindowMs)) {
-      const img = images.find((i) => i.path === path);
-      if (img) { img.burstGroup = info.burstGroup; img.burstRank = info.burstRank; }
-    }
-
-    // Fire-and-forget preview + analysis pipeline.
+    // Return images immediately — renderer paints the grid right away.
+    // Timestamps + previews + analysis all stream back via events.
     void generatePreviews(
       images.map((i) => ({ path: i.path, type: i.type })),
-      (result: PreviewReadyPayload) => {
-        // Find the image so we can attach burst info and pass burstRank to scorer.
-        const img = images.find((i) => i.path === result.path);
+      async (result: PreviewReadyPayload) => {
+        // Timestamp is read per-image here (reuses the running exiftool process)
+        // so it never blocks the initial folder return.
+        const ts = await readTimestamp(result.path).catch(() => -1);
         const enriched: PreviewReadyPayload = {
           ...result,
-          timestamp:  img?.timestamp,
-          burstGroup: img?.burstGroup,
-          burstRank:  img?.burstRank,
+          timestamp: ts >= 0 ? ts : undefined,
         };
         if (!send(sender, IpcChannels.previewReady, enriched)) return;
         if (!result.previewPath) return;
 
-        void analyzeImage(result.previewPath, img?.burstRank)
+        void analyzeImage(result.previewPath)
           .then((scores) => {
             const payload: AnalysisReadyPayload = {
-              path: result.path,
+              path:            result.path,
               sharpnessScore:  scores.sharpnessScore,
               exposureScore:   scores.exposureScore,
               exposureHint:    scores.exposureHint,
@@ -75,15 +59,13 @@ export function registerIngestHandlers(): void {
           })
           .catch((err: Error) => {
             send(sender, IpcChannels.analysisReady, {
-              path: result.path,
+              path:  result.path,
               error: err.message,
             } satisfies AnalysisReadyPayload);
           });
       }
     );
 
-    // Images already carry timestamps + initial burst grouping; previews and
-    // analysis stream in via events.
     return images;
   });
 

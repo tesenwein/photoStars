@@ -135,7 +135,7 @@ export interface PreviewResult {
 
 export async function generatePreviews(
   items: { path: string; type: ImageFileType }[],
-  onResult: (result: PreviewResult) => void,
+  onResult: (result: PreviewResult) => void | Promise<void>,
   concurrency = 4
 ): Promise<void> {
   let cursor = 0;

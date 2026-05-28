@@ -147,7 +147,7 @@ export function App(): React.JSX.Element {
     clearSelection();
     setImages([]);
     setStatus('Scanning…');
-    const imgs = await window.api.ingestFolder(picked, { burstWindowSec: filter.burstWindowSec });
+    const imgs = await window.api.ingestFolder(picked);
     setImages(imgs);
     setStatus(imgs.length === 0 ? 'No supported images found.' : '');
   };

@@ -4,7 +4,7 @@ import { bucketBursts, type BurstItem, type BurstInfo } from '../../shared/burst
 
 const DEFAULT_BURST_WINDOW_MS = 3_000;
 
-async function readTimestamp(filePath: string): Promise<number> {
+export async function readTimestamp(filePath: string): Promise<number> {
   try {
     const tags = await exiftoolInstance.read(filePath, ['CreateDate', 'DateTimeOriginal', 'SubSecTimeOriginal']);
     const dt = tags.CreateDate ?? tags.DateTimeOriginal;
