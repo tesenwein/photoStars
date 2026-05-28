@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useImageStore, passesEyeFilter } from './store/imageStore';
+import { useImageStore, passesImageFilters } from './store/imageStore';
 import { useScoringStore } from './store/scoringStore';
 import { ImageTile } from './components/ImageTile';
 import { DetailView } from './components/DetailView';
@@ -176,10 +176,7 @@ export function App(): React.JSX.Element {
     if (filter.burstBestOnly) {
       result = result.filter((i) => !i.burstGroup || i.burstRank === 1);
     }
-    if (filter.unwrittenOnly) {
-      result = result.filter((i) => !i.written);
-    }
-    result = result.filter((i) => passesEyeFilter(filter.eyes, i));
+    result = result.filter((i) => passesImageFilters(filter, i));
     return sortImages(result, sort.field, sort.dir, effectiveOf);
   }, [images, sort, filter, effectiveOf]);
 

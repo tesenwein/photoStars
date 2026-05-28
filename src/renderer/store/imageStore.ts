@@ -10,11 +10,22 @@ export interface EyeFilterState {
   facesOnly: boolean;
   /** Only images where all detected eyes are open (requires a face). */
   eyesOpenOnly: boolean;
+  /** Only images where at least one eye is closed (requires a face). */
+  eyesClosedOnly: boolean;
   /** Exclude images flagged with a bad expression (closed eyes/mouth/tilt). */
   hideFlagged: boolean;
   /** Only images with a pronounced smile. */
   smilingOnly: boolean;
+  /** Only images with no/weak smile (requires a face). */
+  notSmilingOnly: boolean;
+  /** Only images with the mouth open. */
+  mouthOpenOnly: boolean;
+  /** Only images with multiple detected faces. */
+  multipleFacesOnly: boolean;
 }
+
+export type CullFilter = 'all' | 'keep' | 'neutral' | 'reject';
+export type ExposureFilter = 'all' | 'ok' | 'overexposed' | 'underexposed';
 
 export interface FilterState {
   minStars: number;
@@ -23,6 +34,12 @@ export interface FilterState {
   /** Burst window in seconds — shots within this window are grouped. */
   burstWindowSec: number;
   eyes: EyeFilterState;
+  /** Filter by tri-state cull flag. */
+  cull: CullFilter;
+  /** Filter by exposure hint. */
+  exposure: ExposureFilter;
+  /** Only images detected as portraits. */
+  portraitOnly: boolean;
 }
 
 interface ImageStore {
@@ -63,7 +80,13 @@ export const useImageStore = create<ImageStore>((set) => ({
     unwrittenOnly: false,
     burstBestOnly: false,
     burstWindowSec: 3,
-    eyes: { facesOnly: false, eyesOpenOnly: false, hideFlagged: false, smilingOnly: false },
+    eyes: {
+      facesOnly: false, eyesOpenOnly: false, eyesClosedOnly: false, hideFlagged: false,
+      smilingOnly: false, notSmilingOnly: false, mouthOpenOnly: false, multipleFacesOnly: false,
+    },
+    cull: 'all',
+    exposure: 'all',
+    portraitOnly: false,
   },
   relativeRating: true,
   groupBursts: false,
@@ -128,7 +151,26 @@ export function passesEyeFilter(eyes: EyeFilterState, img: PhotoImage): boolean 
   const faces = e?.facesDetected ?? 0;
   if (eyes.facesOnly && faces === 0) return false;
   if (eyes.eyesOpenOnly && (faces === 0 || !e?.allEyesOpen)) return false;
+  if (eyes.eyesClosedOnly && (faces === 0 || e?.allEyesOpen)) return false;
   if (eyes.hideFlagged && e?.badExpression) return false;
   if (eyes.smilingOnly && (e?.smileScore ?? 0) < SMILE_FILTER_THRESHOLD) return false;
+  if (eyes.notSmilingOnly && (faces === 0 || (e?.smileScore ?? 0) >= SMILE_FILTER_THRESHOLD)) return false;
+  if (eyes.mouthOpenOnly && !e?.mouthOpen) return false;
+  if (eyes.multipleFacesOnly && faces < 2) return false;
+  return true;
+}
+
+/** Effective cull state for an image (falls back to legacy markedForDelete). */
+export function cullOf(img: PhotoImage): 'keep' | 'neutral' | 'reject' {
+  return img.cullStatus ?? (img.markedForDelete ? 'reject' : 'neutral');
+}
+
+/** True when an image passes the non-star/non-burst filters (cull, exposure, portrait, faces). */
+export function passesImageFilters(filter: FilterState, img: PhotoImage): boolean {
+  if (filter.unwrittenOnly && img.written) return false;
+  if (filter.cull !== 'all' && cullOf(img) !== filter.cull) return false;
+  if (filter.exposure !== 'all' && img.exposureHint !== filter.exposure) return false;
+  if (filter.portraitOnly && !img.isPortrait) return false;
+  if (!passesEyeFilter(filter.eyes, img)) return false;
   return true;
 }
