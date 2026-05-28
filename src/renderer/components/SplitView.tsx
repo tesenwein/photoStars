@@ -45,10 +45,11 @@ function FaceZoom({ previewPath, faceBbox, eyeBbox, allEyesOpen }: {
   eyeBbox?: { x: number; y: number; w: number; h: number };
   allEyesOpen?: boolean;
 }): React.JSX.Element {
+  const src = mediaUrl(previewPath);
   return (
     <div className="space-y-1.5">
       <BgZoom
-        src={mediaUrl(previewPath)}
+        src={src}
         bbox={faceBbox}
         size={220}
         className="rounded-lg border border-stone-300 shadow-xl dark:border-zinc-600"
@@ -67,7 +68,7 @@ function FaceZoom({ previewPath, faceBbox, eyeBbox, allEyesOpen }: {
             style={{
               width: 220,
               height: 100,
-              backgroundImage: `url("${mediaUrl(previewPath)}")`,
+              backgroundImage: `url("${src}")`,
               backgroundRepeat: 'no-repeat',
               backgroundSize: `${(1 / eyeBbox.w * 100).toFixed(1)}%`,
               backgroundPosition: `${(eyeBbox.x / Math.max(1 - eyeBbox.w, 0.01) * 100).toFixed(1)}% ${(eyeBbox.y / Math.max(1 - eyeBbox.h, 0.01) * 100).toFixed(1)}%`,
@@ -153,6 +154,53 @@ export function SplitView({ images, filteredImages, getSuggested }: {
   const clampedIdx = Math.min(idx, Math.max(0, filteredImages.length - 1));
   const image      = filteredImages[clampedIdx];
 
+  // Zoom + pan for the main preview.
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom]       = useState(1);
+  const [offset, setOffset]   = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+
+  const resetZoom = useCallback(() => { setZoom(1); setOffset({ x: 0, y: 0 }); }, []);
+
+  // Reset zoom when the selected image changes.
+  useEffect(() => { resetZoom(); }, [image?.path, resetZoom]);
+
+  // Wheel-to-zoom toward the cursor (native non-passive listener).
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left - rect.width / 2;
+      const cy = e.clientY - rect.top - rect.height / 2;
+      setZoom((z) => {
+        const next = Math.min(8, Math.max(1, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+        setOffset((o) => {
+          if (next === 1) return { x: 0, y: 0 };
+          const ratio = next / z;
+          return { x: cx - (cx - o.x) * ratio, y: cy - (cy - o.y) * ratio };
+        });
+        return next;
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoom === 1) return;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
+  }, [zoom, offset]);
+
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    setOffset({ x: d.ox + (e.clientX - d.startX), y: d.oy + (e.clientY - d.startY) });
+  }, []);
+
+  const endDrag = useCallback(() => { dragRef.current = null; }, []);
+
   // Load 4K hi-res preview whenever selected image changes.
   useEffect(() => {
     setHiRes(undefined);
@@ -196,13 +244,28 @@ export function SplitView({ images, filteredImages, getSuggested }: {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Large preview */}
-        <div className="relative flex flex-1 overflow-hidden bg-stone-100 dark:bg-black">
+        <div
+          ref={previewRef}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={endDrag}
+          onMouseLeave={endDrag}
+          onDoubleClick={resetZoom}
+          className={`relative flex flex-1 overflow-hidden bg-stone-100 dark:bg-black ${
+            zoom > 1 ? (dragRef.current ? 'cursor-grabbing' : 'cursor-grab') : ''
+          }`}
+        >
           {image.previewPath ? (
             <img
               key={hiResPath ?? image.previewPath}
               src={mediaUrl(hiResPath ?? image.previewPath)}
               alt={image.name}
-              className="absolute inset-0 h-full w-full object-contain"
+              draggable={false}
+              className="absolute inset-0 h-full w-full object-contain select-none"
+              style={{
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                transition: dragRef.current ? 'none' : 'transform 0.08s ease-out',
+              }}
             />
           ) : (
             <span className="absolute inset-0 flex items-center justify-center text-stone-400 dark:text-zinc-600">Loading preview…</span>
@@ -251,7 +314,7 @@ export function SplitView({ images, filteredImages, getSuggested }: {
             <div>
               <p className="mb-1.5 text-xs uppercase tracking-wide text-stone-400 dark:text-zinc-500">Face</p>
               <FaceZoom
-                previewPath={image.previewPath}
+                previewPath={hiResPath ?? image.previewPath}
                 faceBbox={eye.faceBbox}
                 eyeBbox={eye.eyeBbox}
                 allEyesOpen={eye.allEyesOpen}

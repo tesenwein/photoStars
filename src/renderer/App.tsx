@@ -193,6 +193,16 @@ export function App(): React.JSX.Element {
     setStatus(imgs.length === 0 ? 'No supported images found.' : '');
   };
 
+  const handleRescan = async (): Promise<void> => {
+    if (!folder) return;
+    clearSelection();
+    setImages([]);
+    setStatus('Scanning…');
+    const imgs = await window.api.ingestFolder(folder);
+    setImages(imgs);
+    setStatus(imgs.length === 0 ? 'No supported images found.' : '');
+  };
+
   const apply = async (scope: 'selected' | 'all'): Promise<void> => {
     const targets = images.filter((img) => {
       if (scope === 'selected' && !selected.has(img.path)) return false;
@@ -327,6 +337,16 @@ export function App(): React.JSX.Element {
               title="Delete cached previews and analysis — forces full re-run"
             >
               Clear cache
+            </button>
+          )}
+          {folder && (
+            <button
+              onClick={handleRescan}
+              disabled={writing}
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              title={`Rescan ${folder}`}
+            >
+              ↺ Rescan
             </button>
           )}
           <button
