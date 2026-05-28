@@ -197,8 +197,6 @@ export function App(): React.JSX.Element {
     if (!folder) return;
     clearSelection();
     setImages([]);
-    setStatus('Clearing cache…');
-    await window.api.clearCache();
     setStatus('Scanning…');
     const imgs = await window.api.ingestFolder(folder);
     setImages(imgs);
@@ -253,6 +251,7 @@ export function App(): React.JSX.Element {
   };
 
   const open         = images.find((i) => i.path === openPath);
+  const openIdx      = openPath ? visibleImages.findIndex((i) => i.path === openPath) : -1;
   const pending      = images.filter((i) => !i.previewPath).length;
   const selectedCount = selected.size;
 
@@ -425,7 +424,15 @@ export function App(): React.JSX.Element {
         </main>
       )}
 
-      {open && <DetailView image={open} suggested={getSuggested(open)} onClose={() => setOpenPath(undefined)} />}
+      {open && (
+        <DetailView
+          image={open}
+          suggested={getSuggested(open)}
+          onClose={() => setOpenPath(undefined)}
+          onPrev={openIdx > 0 ? () => setOpenPath(visibleImages[openIdx - 1].path) : undefined}
+          onNext={openIdx < visibleImages.length - 1 ? () => setOpenPath(visibleImages[openIdx + 1].path) : undefined}
+        />
+      )}
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
     </div>
   );
