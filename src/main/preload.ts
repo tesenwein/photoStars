@@ -11,6 +11,7 @@ const api: PhotoStarsApi = {
   selectFolder: () => ipcRenderer.invoke(IpcChannels.selectFolder),
   ingestFolder: (folder) => ipcRenderer.invoke(IpcChannels.ingestFolder, folder),
   clearCache: () => ipcRenderer.invoke(IpcChannels.clearCache),
+  getHiResPreview: (p, t) => ipcRenderer.invoke(IpcChannels.getHiResPreview, p, t),
   onPreviewReady: (cb) => {
     const listener = (_e: unknown, payload: PreviewReadyPayload) => cb(payload);
     ipcRenderer.on(IpcChannels.previewReady, listener);

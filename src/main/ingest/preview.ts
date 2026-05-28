@@ -7,7 +7,8 @@ import sharp from 'sharp';
 import type { ImageFileType } from '../../shared/types';
 import { exiftoolInstance } from '../exiftool/exiftool';
 
-const THUMB_MAX = 512;
+const THUMB_MAX  = 512;
+const HIRES_MAX  = 4096;
 
 // Bump whenever preview-generation logic changes (rotation, sizing, quality) so
 // previously cached previews are invalidated instead of served stale. Without
@@ -111,6 +112,59 @@ export async function generatePreview(
       .rotate()
       .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 80 })
+      .toBuffer();
+  }
+
+  await fs.writeFile(outPath, buf);
+  return outPath;
+}
+
+/**
+ * Generate (or return cached) a high-resolution preview (up to 2048px).
+ * Used by the split-view main image so it fills the screen sharply.
+ */
+export async function generateHiResPreview(
+  filePath: string,
+  type: ImageFileType
+): Promise<string> {
+  const dir     = await ensureCacheDir();
+  const outPath = path.join(dir, `${cacheKey(filePath)}.hires.jpg`);
+
+  try {
+    await fs.access(outPath);
+    return outPath;
+  } catch { /* not cached */ }
+
+  let buf: Buffer;
+  if (type === 'raw') {
+    const rotateDeg = await readRawOrientationDeg(filePath);
+    const tmp = path.join(os.tmpdir(), `ps_raw_hr_${cacheKey(filePath)}.jpg`);
+    try {
+      await exiftoolInstance.extractJpgFromRaw(filePath, tmp);
+      const raw = await fs.readFile(tmp);
+      if (raw.length > 10_000) {
+        buf = await sharp(raw)
+          .rotate(rotateDeg)
+          .resize(HIRES_MAX, HIRES_MAX, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 90 })
+          .toBuffer();
+      } else {
+        throw new Error('embedded JPEG too small');
+      }
+    } catch {
+      buf = await sharp(filePath, { failOn: 'none' })
+        .rotate(rotateDeg)
+        .resize(HIRES_MAX, HIRES_MAX, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+    } finally {
+      fs.unlink(tmp).catch(() => undefined);
+    }
+  } else {
+    buf = await sharp(filePath)
+      .rotate()
+      .resize(HIRES_MAX, HIRES_MAX, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 90 })
       .toBuffer();
   }
 

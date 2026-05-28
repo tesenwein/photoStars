@@ -7,7 +7,7 @@ import {
   type WriteRatingResult,
 } from '../../shared/ipc';
 import { scanFolder } from './scan';
-import { generatePreviews, clearPreviewCache } from './preview';
+import { generatePreviews, clearPreviewCache, generateHiResPreview } from './preview';
 import { readTimestamp } from './burstDetector';
 import { analyzeImage } from '../analysis/analyze';
 import { writeRating } from '../exiftool/writeRating';
@@ -22,6 +22,15 @@ export function registerIngestHandlers(): void {
   ipcMain.handle(IpcChannels.clearCache, async () => {
     await clearPreviewCache();
   });
+
+  ipcMain.handle(
+    IpcChannels.getHiResPreview,
+    async (_event, filePath: string, type: string): Promise<string | undefined> => {
+      try {
+        return await generateHiResPreview(filePath, type as import('../../shared/types').ImageFileType);
+      } catch { return undefined; }
+    }
+  );
 
   ipcMain.handle(IpcChannels.ingestFolder, async (event, folder: string) => {
     const images = await scanFolder(folder);

@@ -9,6 +9,7 @@ export const IpcChannels = {
   analysisReady: 'analysis-ready',
   writeRatings: 'write-ratings',
   clearCache: 'clear-cache',
+  getHiResPreview: 'get-hires-preview',
 } as const;
 
 /** Payload pushed to the renderer as each preview finishes generating. */
@@ -65,6 +66,8 @@ export interface PhotoStarsApi {
   writeRatings: (items: WriteRatingItem[]) => Promise<WriteRatingResult[]>;
   /** Delete preview + analysis cache so the next ingest re-generates everything. */
   clearCache: () => Promise<void>;
+  /** Generate (or return cached) a 2048px hi-res preview for the split-view main image. */
+  getHiResPreview: (path: string, type: ImageFileType) => Promise<string | undefined>;
 }
 
 declare global {

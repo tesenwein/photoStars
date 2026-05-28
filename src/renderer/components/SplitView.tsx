@@ -142,9 +142,21 @@ export function SplitView({ images, filteredImages, getSuggested }: {
 }): React.JSX.Element {
   const setManualStars = useImageStore((s) => s.setManualStars);
 
-  const [idx, setIdx] = useState(0);
-  const clampedIdx    = Math.min(idx, Math.max(0, filteredImages.length - 1));
-  const image         = filteredImages[clampedIdx];
+  const [idx, setIdx]         = useState(0);
+  const [hiResPath, setHiRes] = useState<string | undefined>();
+  const clampedIdx = Math.min(idx, Math.max(0, filteredImages.length - 1));
+  const image      = filteredImages[clampedIdx];
+
+  // Load 4K hi-res preview whenever selected image changes.
+  useEffect(() => {
+    setHiRes(undefined);
+    if (!image) return;
+    let cancelled = false;
+    void window.api.getHiResPreview(image.path, image.type).then((p) => {
+      if (!cancelled) setHiRes(p ?? undefined);
+    });
+    return () => { cancelled = true; };
+  }, [image?.path]);
 
   const prev = useCallback(() => setIdx((i) => Math.max(0, i - 1)), []);
   const next = useCallback(() => setIdx((i) => Math.min(filteredImages.length - 1, i + 1)), [filteredImages.length]);
@@ -177,15 +189,16 @@ export function SplitView({ images, filteredImages, getSuggested }: {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Large preview */}
-        <div className="relative flex flex-1 items-center justify-center bg-stone-100 dark:bg-black">
+        <div className="relative flex flex-1 overflow-hidden bg-stone-100 dark:bg-black">
           {image.previewPath ? (
             <img
-              src={mediaUrl(image.previewPath)}
+              key={hiResPath ?? image.previewPath}
+              src={mediaUrl(hiResPath ?? image.previewPath)}
               alt={image.name}
-              className="max-h-full max-w-full object-contain"
+              className="absolute inset-0 h-full w-full object-contain"
             />
           ) : (
-            <span className="text-stone-400 dark:text-zinc-600">Loading preview…</span>
+            <span className="absolute inset-0 flex items-center justify-center text-stone-400 dark:text-zinc-600">Loading preview…</span>
           )}
 
           {/* Arrow buttons */}
