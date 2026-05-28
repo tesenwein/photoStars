@@ -4,7 +4,6 @@ import { FilterGroup, Toggle } from './controls';
 
 export function BurstControls(): React.JSX.Element {
   const burstWindowSec = useImageStore((s) => s.filter.burstWindowSec);
-  const burstBestOnly  = useImageStore((s) => s.filter.burstBestOnly);
   const groupBursts    = useImageStore((s) => s.groupBursts);
   const setFilter      = useImageStore((s) => s.setFilter);
   const setGroupBursts = useImageStore((s) => s.setGroupBursts);
@@ -21,7 +20,6 @@ export function BurstControls(): React.JSX.Element {
         />
         <span className="w-8 text-stone-600 dark:text-zinc-300">{burstWindowSec}s</span>
       </FilterGroup>
-      <Toggle checked={burstBestOnly} onChange={(v) => setFilter({ burstBestOnly: v })}>Best only</Toggle>
       <Toggle checked={groupBursts} onChange={setGroupBursts}>Group bursts</Toggle>
     </div>
   );

@@ -30,7 +30,6 @@ export type ExposureFilter = 'all' | 'ok' | 'overexposed' | 'underexposed';
 export interface FilterState {
   minStars: number;
   unwrittenOnly: boolean;
-  burstBestOnly: boolean;
   /** Burst window in seconds — shots within this window are grouped. */
   burstWindowSec: number;
   eyes: EyeFilterState;
@@ -78,7 +77,6 @@ export const useImageStore = create<ImageStore>((set) => ({
   filter: {
     minStars: 0,
     unwrittenOnly: false,
-    burstBestOnly: false,
     burstWindowSec: 3,
     eyes: {
       facesOnly: false, eyesOpenOnly: false, eyesClosedOnly: false, hideFlagged: false,
@@ -89,7 +87,7 @@ export const useImageStore = create<ImageStore>((set) => ({
     portraitOnly: false,
   },
   relativeRating: true,
-  groupBursts: false,
+  groupBursts: true,
 
   setFolder: (folder) => set({ folder }),
   setImages: (images) => set({ images }),

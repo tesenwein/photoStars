@@ -183,9 +183,6 @@ export function App(): React.JSX.Element {
     if (filter.minStars > 0) {
       result = result.filter((i) => (effectiveOf(i) ?? 0) >= filter.minStars);
     }
-    if (filter.burstBestOnly) {
-      result = result.filter((i) => !i.burstGroup || i.burstRank === 1);
-    }
     result = result.filter((i) => passesImageFilters(filter, i));
     return sortImages(result, sort.field, sort.dir, effectiveOf);
   }, [images, sort, filter, effectiveOf]);
