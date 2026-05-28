@@ -8,35 +8,37 @@ import { StarRating } from './StarRating';
 
 function ZoomImage({ src, alt }: { src: string; alt: string }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
-  const [zoomed, setZoomed] = useState(false);
+  const [scale, setScale] = useState(1);
   const [origin, setOrigin] = useState({ x: 50, y: 50 });
 
-  const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!zoomed) return;
+  const updateOrigin = useCallback((e: MouseEvent | React.MouseEvent) => {
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     setOrigin({
       x: ((e.clientX - r.left) / r.width)  * 100,
       y: ((e.clientY - r.top)  / r.height) * 100,
     });
-  }, [zoomed]);
-
-  const onClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const r = ref.current?.getBoundingClientRect();
-    if (r) setOrigin({
-      x: ((e.clientX - r.left) / r.width)  * 100,
-      y: ((e.clientY - r.top)  / r.height) * 100,
-    });
-    setZoomed((z) => !z);
   }, []);
+
+  // Use a native wheel listener with { passive: false } so preventDefault works.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e: WheelEvent): void => {
+      e.preventDefault();
+      updateOrigin(e);
+      setScale((s) => Math.min(8, Math.max(1, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15))));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [updateOrigin]);
 
   return (
     <div
       ref={ref}
       className="relative flex h-full w-full items-center justify-center overflow-hidden"
-      style={{ cursor: zoomed ? 'zoom-out' : 'zoom-in' }}
-      onClick={onClick}
-      onMouseMove={onMove}
+      style={{ cursor: scale > 1 ? 'grab' : 'default' }}
+      onMouseMove={(e) => updateOrigin(e)}
     >
       <img
         src={src}
@@ -44,9 +46,9 @@ function ZoomImage({ src, alt }: { src: string; alt: string }): React.JSX.Elemen
         draggable={false}
         className="h-full w-full object-contain select-none"
         style={{
-          transform:       zoomed ? 'scale(2.8)' : 'scale(1)',
+          transform:       `scale(${scale})`,
           transformOrigin: `${origin.x}% ${origin.y}%`,
-          transition:      zoomed ? 'none' : 'transform 0.18s ease',
+          transition:      scale === 1 ? 'transform 0.18s ease' : 'none',
           willChange:      'transform',
         }}
       />
