@@ -37,7 +37,10 @@ function deriveStars(
     weights.exposure  * (exposureScore / 100) +
     weights.aesthetics * aestheticNorm;
 
-  let stars = Math.round(quality * 5);
+  // Power curve: compresses low-quality scores so most images land at 0–2★
+  // and only genuinely strong images reach 3+.
+  const curved = Math.pow(Math.max(0, quality), config.qualityPower);
+  let stars = Math.round(curved * 5);
   stars = Math.min(stars, blurryCap);
 
   // Penalty: faces detected but at least one eye closed.

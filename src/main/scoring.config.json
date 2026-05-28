@@ -1,9 +1,10 @@
 {
   "weights": {
-    "sharpness": 0.30,
-    "exposure": 0.25,
-    "aesthetics": 0.45
+    "sharpness": 0.45,
+    "exposure": 0.35,
+    "aesthetics": 0.20
   },
+  "qualityPower": 1.8,
   "hardCaps": {
     "blurryVariance": 50,
     "blurryMaxStars": 2,
