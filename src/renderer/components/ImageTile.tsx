@@ -24,7 +24,7 @@ export function ImageTile({
 }): React.JSX.Element {
   const toggleSelected     = useImageStore((s) => s.toggleSelected);
   const setManualStars     = useImageStore((s) => s.setManualStars);
-  const toggleMarkForDelete = useImageStore((s) => s.toggleMarkForDelete);
+  const setCullStatus      = useImageStore((s) => s.setCullStatus);
 
   const stars = image.manualStars ?? suggested;
   const isDerived = image.manualStars === undefined;
@@ -68,7 +68,7 @@ export function ImageTile({
         image.markedForDelete
           ? 'border-rose-500 ring-2 ring-rose-500/40'
           : selected
-          ? 'border-amber-400 ring-2 ring-amber-400/40'
+          ? 'border-emerald-500 ring-2 ring-emerald-500/40'
           : 'border-stone-200 dark:border-zinc-700'
       }`}
       onClick={onOpen}
@@ -85,17 +85,33 @@ export function ImageTile({
       {image.markedForDelete && (
         <div className="absolute inset-0 z-10 bg-rose-600/30 pointer-events-none" />
       )}
-      <button
-        onClick={(e) => { e.stopPropagation(); toggleMarkForDelete(image.path); }}
-        className={`absolute right-2 top-2 z-20 rounded p-0.5 text-base leading-none transition-opacity ${
-          image.markedForDelete
-            ? 'bg-rose-600 text-white opacity-100'
-            : 'bg-black/40 text-white opacity-0 group-hover:opacity-80'
-        }`}
-        title={image.markedForDelete ? 'Unmark for delete' : 'Mark for delete'}
-      >
-        🗑
-      </button>
+      {(() => {
+        const cur = image.cullStatus ?? (image.markedForDelete ? 'reject' : 'neutral');
+        const groupVisible = cur !== 'neutral';
+        return (
+          <div
+            className={`absolute right-2 top-2 z-20 flex overflow-hidden rounded bg-black/40 text-sm leading-none transition-opacity ${
+              groupVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-90'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {([
+              { key: 'keep',    label: '✓', active: 'bg-emerald-600 text-white', hover: 'hover:bg-emerald-700/70 text-zinc-200' },
+              { key: 'neutral', label: '○', active: 'bg-stone-500 text-white',   hover: 'hover:bg-stone-600/70 text-zinc-200' },
+              { key: 'reject',  label: '🗑', active: 'bg-rose-600 text-white',    hover: 'hover:bg-rose-700/70 text-zinc-200' },
+            ] as const).map((b) => (
+              <button
+                key={b.key}
+                onClick={(e) => { e.stopPropagation(); setCullStatus(image.path, b.key); }}
+                title={b.key}
+                className={`px-1.5 py-1 transition-colors ${cur === b.key ? b.active : b.hover}`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {image.written && (
         <span className="absolute right-2 top-2 z-10 rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
