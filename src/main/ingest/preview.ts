@@ -29,11 +29,17 @@ async function ensureCacheDir(): Promise<string> {
  * it is stored in raw sensor (landscape) orientation — so we must read the
  * Orientation from the DNG itself and apply an explicit rotation.
  */
+// EXIF Orientation → degrees clockwise to pass to sharp().rotate(deg)
+// Verified against Leica SL2 DNGs (Orientation=8 = camera rotated CW = needs 90° CW fix).
 const ORIENTATION_TO_DEG: Record<number, number> = {
-  1: 0, 2: 0,    // normal / mirror (ignore mirror for simplicity)
-  3: 180, 4: 180,
-  5: 90,  6: 90,  // camera rotated CCW → rotate 90° CW
-  7: 270, 8: 270, // camera rotated CW  → rotate 270° CW (= 90° CCW)
+  1: 0,   // normal
+  2: 0,   // flip H (ignored)
+  3: 180, // 180°
+  4: 180, // flip V (ignored)
+  5: 90,
+  6: 90,  // camera rotated CCW (portrait right) → rotate 90° CW
+  7: 270,
+  8: 90,  // camera rotated CW  (portrait left)  → rotate 90° CW  ← was 270, wrong
 };
 
 async function readOrientationDeg(filePath: string): Promise<number> {

@@ -61,11 +61,17 @@ function FaceZoom({ previewPath, faceBbox, eyeBbox, allEyesOpen }: {
               {allEyesOpen === false ? '✗ closed' : '✓ open'}
             </span>
           </p>
-          <BgZoom
-            src={mediaUrl(previewPath)}
-            bbox={eyeBbox}
-            size={220}
-            className="rounded-lg border-2 border-slate-500 shadow-lg"
+          {/* Wide landscape panel — eyes are side-by-side */}
+          <div
+            className="rounded-lg border-2 border-slate-500 shadow-lg overflow-hidden"
+            style={{
+              width: 220,
+              height: 100,
+              backgroundImage: `url("${mediaUrl(previewPath)}")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: `${(1 / eyeBbox.w * 100).toFixed(1)}%`,
+              backgroundPosition: `${(eyeBbox.x / Math.max(1 - eyeBbox.w, 0.01) * 100).toFixed(1)}% ${(eyeBbox.y / Math.max(1 - eyeBbox.h, 0.01) * 100).toFixed(1)}%`,
+            }}
           />
         </div>
       )}

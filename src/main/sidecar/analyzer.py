@@ -22,16 +22,18 @@ import numpy as np
 # ── Eye landmark indices (478-point model) ────────────────────────────────
 _LEFT_EYE  = [362, 385, 387, 263, 373, 380]
 _RIGHT_EYE = [33,  160, 158, 133, 153, 144]
-_EAR_THRESHOLD   = 0.20
+_EAR_THRESHOLD   = 0.17   # lower = only clearly closed eyes (was 0.20)
 
 # ── Mouth ─────────────────────────────────────────────────────────────────
 _MOUTH_LEFT   = 61
 _MOUTH_RIGHT  = 291
 _MOUTH_TOP    = 13
 _MOUTH_BOTTOM = 14
-_MAR_OPEN_THRESHOLD = 0.35
+_MAR_OPEN_THRESHOLD = 0.55  # higher = only wide-open/yawning (was 0.35)
 
-_TILT_THRESHOLD_DEG = 25.0
+# Head tilt: informational only — NOT included in badExpression for model shots.
+# Intentional model poses often have 30-60° tilts.
+_TILT_INFO_THRESHOLD_DEG = 60.0  # shown in UI but does not flag bad expression
 
 # ── Lazy-loaded landmarker ────────────────────────────────────────────────
 _landmarker = None
@@ -106,27 +108,40 @@ def _face_bbox(lm):
     }
 
 
-# Landmarks enclosing both eyes (outer corners + brow area)
-_EYE_REGION_IDX = [
-    # Left eye outer landmarks
-    362, 263, 386, 374,
-    # Right eye outer landmarks
-    33,  133, 159, 145,
-    # Brow points (to include brow area)
-    70, 63, 105, 66, 107,  # right brow
-    336, 296, 334, 293, 300,  # left brow
-]
-
 def _eye_bbox(lm):
-    pts = [lm[i] for i in _EYE_REGION_IDX]
-    xs = [p.x for p in pts]
-    ys = [p.y for p in pts]
-    pad = 0.02
+    """
+    Very tight crop around both eyes — just enough to judge sharpness and
+    whether eyes are open. Uses only the eye-corner landmarks (no brows).
+    Iris centers (468, 473) are used when available (refine_landmarks=True).
+    """
+    # Tight eye corners only — no brows
+    eye_pts_idx = [
+        33,  133, 159, 145, 160, 144,  # right eye
+        362, 263, 386, 374, 385, 380,  # left eye
+    ]
+    pts = [lm[i] for i in eye_pts_idx]
+
+    # If iris landmarks are present (478-point model), use them for centring
+    if len(lm) > 473:
+        pts += [lm[468], lm[473]]  # right iris, left iris centres
+
+    xs  = [p.x for p in pts]
+    ys  = [p.y for p in pts]
+
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    eye_w = x_max - x_min
+    eye_h = y_max - y_min
+
+    # Add small horizontal padding, generous vertical so eye whites show
+    pad_x = eye_w * 0.25
+    pad_y = eye_h * 0.80   # eyes are thin — pad more vertically
+
     return {
-        "x": max(0.0, min(xs)-pad),
-        "y": max(0.0, min(ys)-pad),
-        "w": min(1.0, max(xs)-min(xs)+2*pad),
-        "h": min(1.0, max(ys)-min(ys)+2*pad),
+        "x": max(0.0, x_min - pad_x),
+        "y": max(0.0, y_min - pad_y),
+        "w": min(1.0, eye_w + 2 * pad_x),
+        "h": min(1.0, eye_h + 2 * pad_y),
     }
 
 
@@ -180,7 +195,9 @@ def analyze_face_eye(image_path: str) -> dict:
             face_bbox_out = _face_bbox(lm)
             eye_bbox_out  = _eye_bbox(lm)
 
-    bad = not all_eyes_open or any_mouth_open or worst_tilt > _TILT_THRESHOLD_DEG
+    # badExpression: only eyes closed or mouth clearly wide open.
+    # Head tilt is intentional for model/portrait photography — not flagged.
+    bad = not all_eyes_open or any_mouth_open
 
     return {
         "facesDetected": len(result.face_landmarks),
