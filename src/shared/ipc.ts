@@ -20,6 +20,10 @@ export interface PreviewReadyPayload {
   timestamp?: number;
   burstGroup?: string;
   burstRank?: number;
+  /** Existing star rating read from XMP/EXIF (1–5), undefined = unrated. */
+  existingRating?: number;
+  /** Existing XMP colour label (Green / Blue / Yellow / Red / …). */
+  existingLabel?: string;
   error?: string;
 }
 

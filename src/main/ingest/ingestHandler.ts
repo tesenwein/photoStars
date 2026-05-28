@@ -8,7 +8,7 @@ import {
 } from '../../shared/ipc';
 import { scanFolder } from './scan';
 import { generatePreviews, clearPreviewCache, generateHiResPreview } from './preview';
-import { readTimestamp } from './burstDetector';
+import { readImageMeta } from './burstDetector';
 import { analyzeImage } from '../analysis/analyze';
 import { writeRating } from '../exiftool/writeRating';
 
@@ -41,12 +41,14 @@ export function registerIngestHandlers(): void {
     void generatePreviews(
       images.map((i) => ({ path: i.path, type: i.type })),
       async (result: PreviewReadyPayload) => {
-        // Timestamp is read per-image here (reuses the running exiftool process)
-        // so it never blocks the initial folder return.
-        const ts = await readTimestamp(result.path).catch(() => -1);
+        // Read timestamp + existing rating in one exiftool call (reuses the
+        // running process) so it never blocks the initial folder return.
+        const meta = await readImageMeta(result.path).catch(() => ({ ts: -1, rating: undefined, label: undefined }));
         const enriched: PreviewReadyPayload = {
           ...result,
-          timestamp: ts >= 0 ? ts : undefined,
+          timestamp:      meta.ts >= 0 ? meta.ts : undefined,
+          existingRating: meta.rating,
+          existingLabel:  meta.label,
         };
         if (!send(sender, IpcChannels.previewReady, enriched)) return;
         if (!result.previewPath) return;

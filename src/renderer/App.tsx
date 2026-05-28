@@ -87,10 +87,16 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     const offPreview  = window.api.onPreviewReady((p) => updateImage(p.path, {
-      previewPath: p.previewPath,
-      timestamp:   p.timestamp,
-      burstGroup:  p.burstGroup,
-      burstRank:   p.burstRank,
+      previewPath:  p.previewPath,
+      timestamp:    p.timestamp,
+      burstGroup:   p.burstGroup,
+      burstRank:    p.burstRank,
+      // If the file already carries a rating, treat it as a manual star and
+      // flag it as already-written so we don't overwrite it unintentionally.
+      ...(p.existingRating !== undefined && {
+        manualStars: p.existingRating,
+        written:     true,
+      }),
     }));
     const offAnalysis = window.api.onAnalysisReady((p) => {
       if (p.error) return;

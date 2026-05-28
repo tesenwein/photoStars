@@ -4,24 +4,53 @@ import { bucketBursts, type BurstItem, type BurstInfo } from '../../shared/burst
 
 const DEFAULT_BURST_WINDOW_MS = 3_000;
 
-export async function readTimestamp(filePath: string): Promise<number> {
-  try {
-    const tags = await exiftoolInstance.read(filePath, ['CreateDate', 'DateTimeOriginal', 'SubSecTimeOriginal']);
-    const dt = tags.CreateDate ?? tags.DateTimeOriginal;
-    if (!dt) return -1;
-    // ExifDateTime has .toDate()
-    const d = typeof (dt as { toDate?: () => Date }).toDate === 'function'
-      ? (dt as { toDate: () => Date }).toDate()
-      : new Date(String(dt));
-    const base = isNaN(d.getTime()) ? -1 : d.getTime();
-    if (base === -1) return -1;
+export interface ImageMeta {
+  ts: number;           // Unix ms, -1 if unknown
+  rating?: number;      // 0–5 from XMP:Rating / EXIF Rating
+  label?: string;       // xmp:Label (Green / Blue / Yellow / Red / …)
+}
 
-    // Add sub-second precision if available
-    const subSec = tags.SubSecTimeOriginal ? Number(tags.SubSecTimeOriginal) / 100 : 0;
-    return base + subSec * 1000;
+/** Single exiftool call that reads timestamp + existing rating/label together. */
+export async function readImageMeta(filePath: string): Promise<ImageMeta> {
+  try {
+    const tags = await exiftoolInstance.read(filePath, [
+      'CreateDate', 'DateTimeOriginal', 'SubSecTimeOriginal',
+      'Rating', 'XMP:Rating', 'Label', 'XMP:Label',
+    ]);
+
+    // Timestamp
+    const dt = tags.CreateDate ?? tags.DateTimeOriginal;
+    let ts = -1;
+    if (dt) {
+      const d = typeof (dt as { toDate?: () => Date }).toDate === 'function'
+        ? (dt as { toDate: () => Date }).toDate()
+        : new Date(String(dt));
+      const base = isNaN(d.getTime()) ? -1 : d.getTime();
+      if (base >= 0) {
+        const subSec = tags.SubSecTimeOriginal ? Number(tags.SubSecTimeOriginal) / 100 : 0;
+        ts = base + subSec * 1000;
+      }
+    }
+
+    // Rating: prefer XMP:Rating, fall back to EXIF Rating; ignore 0 (unrated)
+    const rawRating = (tags as Record<string, unknown>)['XMP:Rating'] ?? tags.Rating;
+    const rating = typeof rawRating === 'number' && rawRating > 0
+      ? Math.min(5, Math.max(1, Math.round(rawRating)))
+      : undefined;
+
+    // Label
+    const rawLabel = (tags as Record<string, unknown>)['XMP:Label'] ?? tags.Label;
+    const label = typeof rawLabel === 'string' && rawLabel ? rawLabel : undefined;
+
+    return { ts, rating, label };
   } catch {
-    return -1;
+    return { ts: -1 };
   }
+}
+
+/** Kept for callers that only need the timestamp. */
+export async function readTimestamp(filePath: string): Promise<number> {
+  return (await readImageMeta(filePath)).ts;
 }
 
 /**
