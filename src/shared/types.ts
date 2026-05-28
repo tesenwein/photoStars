@@ -5,6 +5,14 @@ export type ExposureHint = 'ok' | 'overexposed' | 'underexposed';
 export interface EyeStatus {
   facesDetected: number;
   allEyesOpen: boolean;
+  /** 0–1; higher = more pronounced smile. undefined when no faces detected. */
+  smileScore?: number;
+  /** True when mouth is significantly open (yawning, talking, surprised). */
+  mouthOpen?: boolean;
+  /** Head tilt in degrees from vertical; >25° flagged as a misshot. */
+  headTiltDeg?: number;
+  /** Aggregate bad-expression flag: closed eyes OR mouth open OR extreme tilt. */
+  badExpression?: boolean;
 }
 
 export interface PhotoImage {
@@ -32,6 +40,11 @@ export interface PhotoImage {
   manualStars?: number;
   /** Whether the rating has been written to disk. */
   written: boolean;
+
+  /** Burst group ID (SHA of rounded timestamp); set when ≥2 shots within 3 s. */
+  burstGroup?: string;
+  /** 1 = best in burst, 2 = second-best, etc. */
+  burstRank?: number;
 }
 
 /** The effective rating shown/applied: manual override wins over derived. */

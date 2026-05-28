@@ -7,6 +7,7 @@ export type SortDir = 'asc' | 'desc';
 export interface FilterState {
   minStars: number;
   unwrittenOnly: boolean;
+  burstBestOnly: boolean;
 }
 
 interface ImageStore {
@@ -32,7 +33,7 @@ export const useImageStore = create<ImageStore>((set) => ({
   images: [],
   selected: new Set<string>(),
   sort: { field: 'name', dir: 'asc' },
-  filter: { minStars: 0, unwrittenOnly: false },
+  filter: { minStars: 0, unwrittenOnly: false, burstBestOnly: false },
 
   setFolder: (folder) => set({ folder }),
   setImages: (images) => set({ images }),

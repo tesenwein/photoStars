@@ -13,6 +13,8 @@ export interface AnalysisResult {
   derivedStars: number;
 }
 
+/** burstRank 1 = best slot in burst (no penalty), 2+ = progressively capped. */
+
 function normalizeSharpness(variance: number): number {
   const { floor, ceil } = config.sharpness;
   const clamped = Math.max(floor, Math.min(ceil, variance));
@@ -23,7 +25,8 @@ function deriveStars(
   sharpNorm: number,
   exposureScore: number,
   aestheticsScore: number | undefined,
-  eyeStatus: EyeStatus | undefined
+  eyeStatus: EyeStatus | undefined,
+  burstRank: number | undefined
 ): number {
   const { weights, hardCaps } = config;
 
@@ -37,21 +40,28 @@ function deriveStars(
     weights.exposure  * (exposureScore / 100) +
     weights.aesthetics * aestheticNorm;
 
-  // Power curve: compresses low-quality scores so most images land at 0–2★
-  // and only genuinely strong images reach 3+.
+  // Power curve: compresses low-quality scores so most images land at 0–2★.
   const curved = Math.pow(Math.max(0, quality), config.qualityPower);
   let stars = Math.round(curved * 5);
   stars = Math.min(stars, blurryCap);
 
-  // Penalty: faces detected but at least one eye closed.
-  if (eyeStatus && eyeStatus.facesDetected > 0 && !eyeStatus.allEyesOpen) {
-    stars = Math.max(1, stars - hardCaps.closedEyesPenalty);
+  // Penalty: faces present but eyes closed or bad expression.
+  if (eyeStatus && eyeStatus.facesDetected > 0) {
+    if (!eyeStatus.allEyesOpen || eyeStatus.badExpression) {
+      stars = Math.max(0, stars - hardCaps.closedEyesPenalty);
+    }
+  }
+
+  // Burst penalty: non-best shots in a burst are capped below the best slot.
+  if (burstRank !== undefined && burstRank > 1) {
+    const burstCap = Math.max(0, 3 - (burstRank - 1)); // rank2→2, rank3→1, rank4+→0
+    stars = Math.min(stars, burstCap);
   }
 
   return Math.max(0, Math.min(5, stars));
 }
 
-export async function analyzeImage(previewPath: string): Promise<AnalysisResult> {
+export async function analyzeImage(previewPath: string, burstRank?: number): Promise<AnalysisResult> {
   const [sharpnessScore, exposure] = await Promise.all([
     computeSharpness(previewPath),
     computeExposure(previewPath),
@@ -78,6 +88,6 @@ export async function analyzeImage(previewPath: string): Promise<AnalysisResult>
     exposureHint: exposure.hint,
     eyeStatus,
     aestheticsScore,
-    derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus),
+    derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank),
   };
 }

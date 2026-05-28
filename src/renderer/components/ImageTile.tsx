@@ -46,9 +46,16 @@ export function ImageTile({
           written
         </span>
       )}
-      {image.eyeStatus && image.eyeStatus.facesDetected > 0 && !image.eyeStatus.allEyesOpen && (
+      {image.eyeStatus && image.eyeStatus.facesDetected > 0 && image.eyeStatus.badExpression && (
         <span className="absolute left-2 bottom-14 z-10 rounded bg-rose-700/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
-          eyes closed
+          {!image.eyeStatus.allEyesOpen ? 'eyes closed' : image.eyeStatus.mouthOpen ? 'mouth open' : 'tilted'}
+        </span>
+      )}
+      {image.burstGroup && (
+        <span className={`absolute right-2 bottom-14 z-10 rounded px-1.5 py-0.5 text-[10px] font-medium text-white ${
+          image.burstRank === 1 ? 'bg-sky-600/90' : 'bg-slate-600/80'
+        }`}>
+          {image.burstRank === 1 ? 'burst★' : `burst ${image.burstRank ?? ''}`}
         </span>
       )}
 

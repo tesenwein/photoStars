@@ -84,6 +84,32 @@ export function DetailView({ image, onClose }: { image: PhotoImage; onClose: () 
                   : `closed (${image.eyeStatus.facesDetected})`
               }
             />
+            {image.eyeStatus && image.eyeStatus.facesDetected > 0 && (
+              <>
+                <Metric
+                  label="Smile"
+                  value={image.eyeStatus.smileScore !== undefined
+                    ? `${Math.round(image.eyeStatus.smileScore * 100)}%`
+                    : '—'}
+                />
+                <Metric
+                  label="Mouth"
+                  value={image.eyeStatus.mouthOpen === undefined ? '—' : image.eyeStatus.mouthOpen ? 'open' : 'closed'}
+                />
+                <Metric
+                  label="Head tilt"
+                  value={image.eyeStatus.headTiltDeg !== undefined
+                    ? `${image.eyeStatus.headTiltDeg.toFixed(1)}°`
+                    : '—'}
+                />
+              </>
+            )}
+            {image.burstGroup && (
+              <Metric
+                label="Burst"
+                value={`group ${image.burstGroup} · rank ${image.burstRank ?? '?'}`}
+              />
+            )}
             <Metric label="Suggested" value={image.derivedStars !== undefined ? `${image.derivedStars}★` : '—'} />
             <Metric label="Written" value={image.written ? 'yes' : 'no'} />
           </div>

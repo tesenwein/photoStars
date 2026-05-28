@@ -14,6 +14,8 @@ export const IpcChannels = {
 export interface PreviewReadyPayload {
   path: string;
   previewPath?: string;
+  burstGroup?: string;
+  burstRank?: number;
   error?: string;
 }
 

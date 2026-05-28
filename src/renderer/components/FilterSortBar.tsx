@@ -58,6 +58,19 @@ export function FilterSortBar(): React.JSX.Element {
 
       <div className="h-4 w-px bg-slate-700" />
 
+      {/* Burst best only */}
+      <label className="flex cursor-pointer items-center gap-1.5">
+        <input
+          type="checkbox"
+          checked={filter.burstBestOnly}
+          onChange={(e) => setFilter({ burstBestOnly: e.target.checked })}
+          className="accent-amber-400"
+        />
+        <span>Burst best only</span>
+      </label>
+
+      <div className="h-4 w-px bg-slate-700" />
+
       {/* Unwritten only */}
       <label className="flex cursor-pointer items-center gap-1.5">
         <input

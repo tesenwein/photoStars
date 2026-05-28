@@ -8,6 +8,7 @@ import {
 } from '../../shared/ipc';
 import { scanFolder } from './scan';
 import { generatePreviews } from './preview';
+import { detectBursts } from './burstDetector';
 import { analyzeImage } from '../analysis/analyze';
 import { writeRating } from '../exiftool/writeRating';
 
@@ -22,23 +23,41 @@ export function registerIngestHandlers(): void {
     const images = await scanFolder(folder);
     const sender = event.sender;
 
-    // Fire-and-forget: previews stream back, and each one kicks off analysis.
+    // Burst detection runs concurrently with preview generation.
+    const burstPromise = detectBursts(images).then((bursts) => {
+      for (const [path, info] of bursts) {
+        const img = images.find((i) => i.path === path);
+        if (img) {
+          img.burstGroup = info.burstGroup;
+          img.burstRank  = info.burstRank;
+        }
+      }
+    }).catch(() => { /* non-fatal */ });
+
+    // Fire-and-forget preview + analysis pipeline.
     void generatePreviews(
       images.map((i) => ({ path: i.path, type: i.type })),
       (result: PreviewReadyPayload) => {
-        if (!send(sender, IpcChannels.previewReady, result)) return;
+        // Find the image so we can attach burst info and pass burstRank to scorer.
+        const img = images.find((i) => i.path === result.path);
+        const enriched: PreviewReadyPayload = {
+          ...result,
+          burstGroup: img?.burstGroup,
+          burstRank:  img?.burstRank,
+        };
+        if (!send(sender, IpcChannels.previewReady, enriched)) return;
         if (!result.previewPath) return;
 
-        void analyzeImage(result.previewPath)
+        void analyzeImage(result.previewPath, img?.burstRank)
           .then((scores) => {
             const payload: AnalysisReadyPayload = {
               path: result.path,
-              sharpnessScore: scores.sharpnessScore,
-              exposureScore: scores.exposureScore,
-              exposureHint: scores.exposureHint,
-              eyeStatus: scores.eyeStatus,
+              sharpnessScore:  scores.sharpnessScore,
+              exposureScore:   scores.exposureScore,
+              exposureHint:    scores.exposureHint,
+              eyeStatus:       scores.eyeStatus,
               aestheticsScore: scores.aestheticsScore,
-              derivedStars: scores.derivedStars,
+              derivedStars:    scores.derivedStars,
             };
             send(sender, IpcChannels.analysisReady, payload);
           })
@@ -51,6 +70,10 @@ export function registerIngestHandlers(): void {
       }
     );
 
+    // Return immediately — burst info will be on the image objects already
+    // if detection finished before previews; otherwise the scorer re-reads
+    // burstRank from the image object which is updated when burstPromise settles.
+    void burstPromise;
     return images;
   });
 

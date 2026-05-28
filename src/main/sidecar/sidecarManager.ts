@@ -120,8 +120,12 @@ export class SidecarManager {
   async analyzeFaceEye(imagePath: string): Promise<EyeStatus> {
     const r = await this.send('face_eye', imagePath);
     return {
-      facesDetected: (r['facesDetected'] as number) ?? 0,
-      allEyesOpen: (r['allEyesOpen'] as boolean) ?? true,
+      facesDetected: (r['facesDetected'] as number)  ?? 0,
+      allEyesOpen:   (r['allEyesOpen']   as boolean) ?? true,
+      smileScore:    r['smileScore']   as number | undefined,
+      mouthOpen:     r['mouthOpen']    as boolean | undefined,
+      headTiltDeg:   r['headTiltDeg']  as number | undefined,
+      badExpression: (r['badExpression'] as boolean) ?? false,
     };
   }
 

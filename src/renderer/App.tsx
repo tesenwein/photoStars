@@ -40,7 +40,11 @@ export function App(): React.JSX.Element {
   const [status,   setStatus]   = useState<string>('');
 
   useEffect(() => {
-    const offPreview  = window.api.onPreviewReady((p) => updateImage(p.path, { previewPath: p.previewPath }));
+    const offPreview  = window.api.onPreviewReady((p) => updateImage(p.path, {
+      previewPath: p.previewPath,
+      burstGroup:  p.burstGroup,
+      burstRank:   p.burstRank,
+    }));
     const offAnalysis = window.api.onAnalysisReady((p) => {
       if (p.error) return;
       updateImage(p.path, {
@@ -59,6 +63,9 @@ export function App(): React.JSX.Element {
     let result = images;
     if (filter.minStars > 0) {
       result = result.filter((i) => (effectiveStars(i) ?? 0) >= filter.minStars);
+    }
+    if (filter.burstBestOnly) {
+      result = result.filter((i) => !i.burstGroup || i.burstRank === 1);
     }
     if (filter.unwrittenOnly) {
       result = result.filter((i) => !i.written);
