@@ -10,12 +10,11 @@ files:
   - dist/**/*
   - package.json
 
-extraFiles:
-  # Bundle the Python sidecar script with the app.
-  - from: src/main/sidecar/analyzer.py
-    to: resources/sidecar/analyzer.py
-  - from: src/main/sidecar/requirements.txt
-    to: resources/sidecar/requirements.txt
+# The sidecar (analyzer.py + model files) must live on the real filesystem so the
+# spawned Python process can read it — files inside app.asar are not accessible to
+# external processes. Unpack the whole sidecar dir to app.asar.unpacked.
+asarUnpack:
+  - dist/main/sidecar/**
 
 # exiftool binary (add your platform binary to build/exiftool/ before packaging).
 # See: https://exiftool.org/install.html

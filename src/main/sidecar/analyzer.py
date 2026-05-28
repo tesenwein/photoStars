@@ -214,6 +214,39 @@ def _face_eye_from_img(img_bgr) -> dict:
     }
 
 
+# ── Lazy-loaded NIMA ONNX model (required — no heuristic fallback) ─────────
+_nima_session = None
+_IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+_IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+
+def _get_nima():
+    global _nima_session
+    if _nima_session is not None:
+        return _nima_session
+
+    model_path = os.path.join(os.path.dirname(__file__), "nima.onnx")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"nima.onnx not found at {model_path}")
+    import onnxruntime as ort
+    _nima_session = ort.InferenceSession(
+        model_path, providers=["CPUExecutionProvider"]
+    )
+    return _nima_session
+
+
+def _nima_score(img) -> float:
+    session = _get_nima()
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    rgb = cv2.resize(rgb, (224, 224), interpolation=cv2.INTER_AREA)
+    x = rgb.astype(np.float32) / 255.0
+    x = (x - _IMAGENET_MEAN) / _IMAGENET_STD
+    x = np.transpose(x, (2, 0, 1))[np.newaxis, ...].astype(np.float32)
+    probs = session.run(None, {session.get_inputs()[0].name: x})[0][0]
+    buckets = np.arange(1, len(probs) + 1, dtype=np.float32)
+    return round(float((probs * buckets).sum()), 2)
+
+
 def analyze_aesthetics(image_path: str) -> float:
     img = cv2.imread(image_path)
     if img is None:
@@ -222,24 +255,7 @@ def analyze_aesthetics(image_path: str) -> float:
 
 
 def _aesthetics_from_img(img) -> float:
-    img_f = img.astype(np.float32)
-    B, G, R = cv2.split(img_f)
-
-    rg = R - G
-    yb = 0.5*(R+G) - B
-    colorfulness = math.sqrt(float(rg.std())**2 + float(yb.std())**2) + \
-                   0.3*math.sqrt(float(rg.mean())**2 + float(yb.mean())**2)
-
-    gray     = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
-    contrast = float(gray.std())
-
-    hsv        = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    saturation = float(hsv[:,:,1].mean())
-
-    raw   = 0.40*min(colorfulness/60.0, 1.0) + \
-            0.35*min(contrast/70.0, 1.0)     + \
-            0.25*min(saturation/120.0, 1.0)
-    return round(1.0 + raw*9.0, 2)
+    return _nima_score(img)
 
 
 def handle(req: dict) -> dict:

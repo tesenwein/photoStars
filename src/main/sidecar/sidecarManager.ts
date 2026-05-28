@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import type { EyeStatus } from '../../shared/types';
+import { ensureSidecarReady } from './sidecarSetup';
 
 type RequestType = 'analyze' | 'face_eye' | 'aesthetics';
 
@@ -35,31 +36,14 @@ function poolSize(): number {
   return Math.max(1, Math.min(3, cpus - 1));
 }
 
-function findScriptPath(): string {
-  // In a packaged app the .py is copied next to the compiled JS.
-  const prodPath = path.join(__dirname, 'analyzer.py');
-  if (fs.existsSync(prodPath)) return prodPath;
+/** Directory containing analyzer.py + requirements.txt + model files. */
+function sidecarDir(): string {
+  // Packaged: files are copied next to the compiled JS, but unpacked from asar
+  // so the external Python process can read them (see asarUnpack in builder cfg).
+  const prodDir = __dirname.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+  if (fs.existsSync(path.join(prodDir, 'analyzer.py'))) return prodDir;
   // Dev: look in the source tree.
-  return path.join(app.getAppPath(), 'src', 'main', 'sidecar', 'analyzer.py');
-}
-
-// Well-known Windows Python locations, tried in order.
-const WIN_PYTHON_CANDIDATES = [
-  'py',
-  'python',
-  'C:\\Users\\theo\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe',
-  'C:\\Python312\\python.exe',
-  'C:\\Python311\\python.exe',
-];
-
-function pythonBin(): string {
-  if (process.env.PHOTOSTARS_PYTHON) return process.env.PHOTOSTARS_PYTHON;
-  if (process.platform !== 'win32') return 'python3';
-  // Find the first candidate that exists on disk.
-  for (const candidate of WIN_PYTHON_CANDIDATES) {
-    if (!candidate.includes('\\') || fs.existsSync(candidate)) return candidate;
-  }
-  return 'python';
+  return path.join(app.getAppPath(), 'src', 'main', 'sidecar');
 }
 
 function toEyeStatus(r: Record<string, unknown>): EyeStatus {
@@ -83,22 +67,40 @@ export interface CombinedAnalysis {
 export class SidecarManager {
   private workers: Worker[] = [];
 
-  start(): void {
-    if (this.workers.length > 0) return;
+  private starting = false;
 
-    const scriptPath = findScriptPath();
+  /**
+   * Provision the sidecar venv on first run (downloads uv + Python + deps),
+   * then spawn the worker pool. Runs asynchronously: the UI loads immediately
+   * and analysis requests made before the pool is ready reject gracefully
+   * (callers in analyze.ts already treat that as "sidecar unavailable").
+   */
+  start(): void {
+    if (this.workers.length > 0 || this.starting) return;
+    this.starting = true;
+
+    const dir = sidecarDir();
+    const scriptPath = path.join(dir, 'analyzer.py');
     if (!fs.existsSync(scriptPath)) {
       console.warn(`[sidecar] analyzer.py not found at ${scriptPath}; face/eye and aesthetics disabled`);
+      this.starting = false;
       return;
     }
 
-    const bin = pythonBin();
-    const n = poolSize();
-    console.log(`[sidecar] spawning ${String(n)} worker(s): ${bin} ${scriptPath}`);
-    for (let i = 0; i < n; i++) {
-      const w = this.spawnWorker(bin, scriptPath);
-      if (w) this.workers.push(w);
-    }
+    void ensureSidecarReady(path.join(dir, 'requirements.txt'))
+      .then((bin) => {
+        const n = poolSize();
+        console.log(`[sidecar] spawning ${String(n)} worker(s): ${bin} ${scriptPath}`);
+        for (let i = 0; i < n; i++) {
+          const w = this.spawnWorker(bin, scriptPath);
+          if (w) this.workers.push(w);
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('[sidecar] setup failed; face/eye and aesthetics disabled:',
+          err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => { this.starting = false; });
   }
 
   private spawnWorker(bin: string, scriptPath: string): Worker | null {

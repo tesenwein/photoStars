@@ -4,3 +4,10 @@ release/
 *.log
 .DS_Store
 .env
+
+# Sidecar model artifacts — reproduced locally by setup, never committed
+src/main/sidecar/nima.onnx
+src/main/sidecar/face_landmarker.task
+tools/_ckpt/
+.venv-sidecar/
+__pycache__/
