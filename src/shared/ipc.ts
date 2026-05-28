@@ -36,6 +36,8 @@ export interface AnalysisReadyPayload {
   eyeStatus?: import('./types').EyeStatus;
   aestheticsScore?: number;
   isPortrait?: boolean;
+  faceSharpnessScore?: number;
+  bokehRatio?: number;
   qualityScore?: number;
   derivedStars?: number;
   error?: string;

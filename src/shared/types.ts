@@ -70,6 +70,10 @@ export interface PhotoImage {
   aestheticsScore?: number;
   /** True when faces or skin tones detected — portrait weights applied. */
   isPortrait?: boolean;
+  /** Laplacian variance inside the detected face region (portrait only). */
+  faceSharpnessScore?: number;
+  /** faceSharpness / wholeImageSharpness — >1 means subject sharper than background. */
+  bokehRatio?: number;
 
   /** Continuous 0–1 quality score (pre-rounding) used to rank images relative
    * to the rest of the shoot. Penalties are applied on top during ranking. */

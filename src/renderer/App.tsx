@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useImageStore, passesEyeFilter } from './store/imageStore';
+import { useScoringStore } from './store/scoringStore';
 import { ImageTile } from './components/ImageTile';
 import { DetailView } from './components/DetailView';
 import { FilterSortBar } from './components/FilterSortBar';
 import { SplitView } from './components/SplitView';
 import { BurstGroup } from './components/BurstGroup';
+import { SettingsPanel } from './components/SettingsPanel';
 import { useTheme } from './useTheme';
 import { assignRelativeStars } from '../shared/relativeRating';
 import { bucketBursts } from '../shared/burst';
+import { recomputeStars } from '../shared/scoring';
 import { lrLabel, lrPickLabel, type PhotoImage } from '../shared/types';
 import type { WriteRatingItem } from '../shared/ipc';
 
@@ -50,17 +53,30 @@ export function App(): React.JSX.Element {
   const removeImages   = useImageStore((s) => s.removeImages);
 
   const { theme, toggle: toggleTheme } = useTheme();
+  const scoringConfig = useScoringStore((s) => s.config);
 
-  // Relative (whole-shoot) rating: rank all loaded images by qualityScore and
-  // map to a target star distribution. Recomputes as analyses stream in.
-  const relativeMap = useMemo(
-    () => (relativeRating ? assignRelativeStars(images) : null),
-    [images, relativeRating]
+  // Re-derive stars from raw scores using user-configurable weights.
+  // This runs purely in the renderer so changes take effect instantly.
+  const reScore = useCallback(
+    (img: PhotoImage) => recomputeStars(img, scoringConfig),
+    [scoringConfig]
   );
+
+  // Relative (whole-shoot) rating: rank all loaded images by recomputed quality
+  // and map to a target star distribution. Recomputes as analyses stream in.
+  const relativeMap = useMemo(() => {
+    if (!relativeRating) return null;
+    const scored = images.map((img) => ({
+      ...img,
+      qualityScore: reScore(img).qualityScore,
+    }));
+    return assignRelativeStars(scored);
+  }, [images, relativeRating, reScore]);
+
   const getSuggested = useCallback(
     (img: PhotoImage): number | undefined =>
-      (relativeMap ? relativeMap.get(img.path) : undefined) ?? img.derivedStars,
-    [relativeMap]
+      (relativeMap ? relativeMap.get(img.path) : undefined) ?? reScore(img).derivedStars,
+    [relativeMap, reScore]
   );
   const effectiveOf = useCallback(
     (img: PhotoImage): number | undefined => img.manualStars ?? getSuggested(img),
@@ -77,13 +93,28 @@ export function App(): React.JSX.Element {
     return m;
   }, [images]);
 
-  const [openPath, setOpenPath] = useState<string | undefined>();
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [writing,   setWriting]  = useState(false);
-  const [deleting,  setDeleting] = useState(false);
-  const [backup,   setBackup]   = useState(false);
-  const [writeLr,  setWriteLr]  = useState(true);
-  const [status,   setStatus]   = useState<string>('');
+  const [openPath, setOpenPath]       = useState<string | undefined>();
+  const [viewMode, setViewMode]       = useState<ViewMode>('grid');
+  const [writing,   setWriting]       = useState(false);
+  const [deleting,  setDeleting]      = useState(false);
+  const [backup,   setBackup]         = useState(false);
+  const [writeLr,  setWriteLr]        = useState(true);
+  const [status,   setStatus]         = useState<string>('');
+  const [showSettings, setShowSettings] = useState(false);
+
+  const toggleMarkForDelete = useImageStore((s) => s.toggleMarkForDelete);
+
+  // X in grid view → toggle mark-for-delete on every selected image.
+  useEffect(() => {
+    if (viewMode !== 'grid') return;
+    const handler = (e: KeyboardEvent): void => {
+      if (e.key !== 'x' && e.key !== 'X') return;
+      if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      for (const path of selected) toggleMarkForDelete(path);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [viewMode, selected, toggleMarkForDelete]);
 
   useEffect(() => {
     const offPreview  = window.api.onPreviewReady((p) => updateImage(p.path, {
@@ -101,14 +132,16 @@ export function App(): React.JSX.Element {
     const offAnalysis = window.api.onAnalysisReady((p) => {
       if (p.error) return;
       updateImage(p.path, {
-        sharpnessScore:  p.sharpnessScore,
-        exposureScore:   p.exposureScore,
-        exposureHint:    p.exposureHint,
-        eyeStatus:       p.eyeStatus,
-        aestheticsScore: p.aestheticsScore,
-        isPortrait:      p.isPortrait,
-        qualityScore:    p.qualityScore,
-        derivedStars:    p.derivedStars,
+        sharpnessScore:     p.sharpnessScore,
+        exposureScore:      p.exposureScore,
+        exposureHint:       p.exposureHint,
+        eyeStatus:          p.eyeStatus,
+        aestheticsScore:    p.aestheticsScore,
+        isPortrait:         p.isPortrait,
+        faceSharpnessScore: p.faceSharpnessScore,
+        bokehRatio:         p.bokehRatio,
+        qualityScore:       p.qualityScore,
+        derivedStars:       p.derivedStars,
       });
     });
     return () => { offPreview(); offAnalysis(); };
@@ -313,6 +346,20 @@ export function App(): React.JSX.Element {
           >
             {theme === 'dark' ? '☀' : '☾'}
           </button>
+
+          {/* Scoring settings */}
+          <button
+            onClick={() => setShowSettings((v) => !v)}
+            className={`rounded-md border px-2.5 py-1.5 text-sm transition-colors ${
+              showSettings
+                ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-400'
+                : 'border-stone-300 text-stone-600 hover:bg-stone-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+            }`}
+            title="Scoring settings"
+            aria-label="Scoring settings"
+          >
+            ⚙
+          </button>
         </div>
       </header>
 
@@ -371,6 +418,7 @@ export function App(): React.JSX.Element {
       )}
 
       {open && <DetailView image={open} suggested={getSuggested(open)} onClose={() => setOpenPath(undefined)} />}
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

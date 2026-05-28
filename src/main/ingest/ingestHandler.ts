@@ -56,15 +56,17 @@ export function registerIngestHandlers(): void {
         void analyzeImage(result.previewPath)
           .then((scores) => {
             const payload: AnalysisReadyPayload = {
-              path:            result.path,
-              sharpnessScore:  scores.sharpnessScore,
-              exposureScore:   scores.exposureScore,
-              exposureHint:    scores.exposureHint,
-              eyeStatus:       scores.eyeStatus,
-              aestheticsScore: scores.aestheticsScore,
-              isPortrait:      scores.isPortrait,
-              qualityScore:    scores.qualityScore,
-              derivedStars:    scores.derivedStars,
+              path:               result.path,
+              sharpnessScore:     scores.sharpnessScore,
+              exposureScore:      scores.exposureScore,
+              exposureHint:       scores.exposureHint,
+              eyeStatus:          scores.eyeStatus,
+              aestheticsScore:    scores.aestheticsScore,
+              isPortrait:         scores.isPortrait,
+              faceSharpnessScore: scores.faceSharpnessScore,
+              bokehRatio:         scores.bokehRatio,
+              qualityScore:       scores.qualityScore,
+              derivedStars:       scores.derivedStars,
             };
             send(sender, IpcChannels.analysisReady, payload);
           })
