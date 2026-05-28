@@ -27,8 +27,23 @@ function findScriptPath(): string {
   return path.join(app.getAppPath(), 'src', 'main', 'sidecar', 'analyzer.py');
 }
 
+// Well-known Windows Python locations, tried in order.
+const WIN_PYTHON_CANDIDATES = [
+  'py',
+  'python',
+  'C:\\Users\\theo\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe',
+  'C:\\Python312\\python.exe',
+  'C:\\Python311\\python.exe',
+];
+
 function pythonBin(): string {
-  return process.env.PHOTOSTARS_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
+  if (process.env.PHOTOSTARS_PYTHON) return process.env.PHOTOSTARS_PYTHON;
+  if (process.platform !== 'win32') return 'python3';
+  // Find the first candidate that exists on disk.
+  for (const candidate of WIN_PYTHON_CANDIDATES) {
+    if (!candidate.includes('\\') || fs.existsSync(candidate)) return candidate;
+  }
+  return 'python';
 }
 
 export class SidecarManager {
@@ -45,8 +60,14 @@ export class SidecarManager {
       return;
     }
 
-    this.proc = spawn(pythonBin(), [scriptPath], {
-      stdio: ['pipe', 'pipe', 'inherit'],
+    const bin = pythonBin();
+    console.log(`[sidecar] spawning ${bin} ${scriptPath}`);
+    this.proc = spawn(bin, [scriptPath], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    this.proc.stderr!.on('data', (chunk: Buffer) => {
+      process.stderr.write(`[sidecar] ${chunk.toString()}`);
     });
 
     this.proc.stdout!.on('data', (chunk: Buffer) => {
@@ -66,8 +87,8 @@ export class SidecarManager {
       }
     });
 
-    this.proc.on('exit', (code) => {
-      console.warn(`[sidecar] exited with code ${String(code)}`);
+    this.proc.on('exit', (code, signal) => {
+      console.warn(`[sidecar] exited code=${String(code)} signal=${String(signal)}`);
       this.proc = null;
       for (const [, p] of this.pending) p.reject(new Error('sidecar process exited'));
       this.pending.clear();
