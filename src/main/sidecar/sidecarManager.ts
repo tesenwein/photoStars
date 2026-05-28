@@ -127,6 +127,7 @@ export class SidecarManager {
       headTiltDeg:   r['headTiltDeg']  as number | undefined,
       badExpression: (r['badExpression'] as boolean) ?? false,
       faceBbox:      r['faceBbox']     as import('../../shared/types').FaceBbox | undefined,
+      eyeBbox:       r['eyeBbox']      as import('../../shared/types').EyeBbox  | undefined,
     };
   }
 

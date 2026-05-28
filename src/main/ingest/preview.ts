@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as os from 'os';
 import * as crypto from 'crypto';
 import sharp from 'sharp';
 import type { ImageFileType } from '../../shared/types';
@@ -23,21 +24,40 @@ async function ensureCacheDir(): Promise<string> {
 }
 
 /**
- * For RAW files we prefer the embedded JPEG (extractJpgFromRaw).
- * This is more reliable for orientation since the embedded JPEG carries its own
- * EXIF Orientation tag, whereas libraw's DNG decode can interact with sharp's
- * .rotate() in unexpected ways (especially Orientation=8 on Leica files).
+ * EXIF Orientation → clockwise rotation degrees needed to display upright.
+ * The embedded JPEG in Leica (and many other) DNGs has NO Orientation tag —
+ * it is stored in raw sensor (landscape) orientation — so we must read the
+ * Orientation from the DNG itself and apply an explicit rotation.
  */
-async function rawToJpegBuffer(filePath: string, tmpDir: string): Promise<Buffer> {
-  const tmp = path.join(tmpDir, `__raw_${cacheKey(filePath)}.jpg`);
+const ORIENTATION_TO_DEG: Record<number, number> = {
+  1: 0, 2: 0,    // normal / mirror (ignore mirror for simplicity)
+  3: 180, 4: 180,
+  5: 90,  6: 90,  // camera rotated CCW → rotate 90° CW
+  7: 270, 8: 270, // camera rotated CW  → rotate 270° CW (= 90° CCW)
+};
 
-  // Try embedded JpgFromRaw first (Leica SL2: ~1 MB, good quality).
+async function readOrientationDeg(filePath: string): Promise<number> {
+  try {
+    const tags = await exiftoolInstance.read(filePath, ['Orientation']);
+    const o = typeof tags.Orientation === 'number' ? tags.Orientation : 1;
+    return ORIENTATION_TO_DEG[o] ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function rawToJpegBuffer(filePath: string): Promise<Buffer> {
+  // Read orientation from the original DNG (the embedded JPEG has no tag).
+  const rotateDeg = await readOrientationDeg(filePath);
+
+  // Try extracting the high-quality embedded JPEG first (Leica SL2: ~1 MB).
+  const tmp = path.join(os.tmpdir(), `ps_raw_${cacheKey(filePath)}.jpg`);
   try {
     await exiftoolInstance.extractJpgFromRaw(filePath, tmp);
     const buf = await fs.readFile(tmp);
     if (buf.length > 10_000) {
       return sharp(buf)
-        .rotate()  // apply EXIF orientation from the embedded JPEG
+        .rotate(rotateDeg)   // explicit degrees — no EXIF auto-detect
         .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
@@ -48,9 +68,9 @@ async function rawToJpegBuffer(filePath: string, tmpDir: string): Promise<Buffer
     fs.unlink(tmp).catch(() => undefined);
   }
 
-  // Fall back: let sharp/libraw decode the raw data directly.
+  // Fall back: sharp/libraw direct decode with explicit rotation.
   return sharp(filePath)
-    .rotate()
+    .rotate(rotateDeg)
     .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 80 })
     .toBuffer();
@@ -71,7 +91,7 @@ export async function generatePreview(
 
   let buf: Buffer;
   if (type === 'raw') {
-    buf = await rawToJpegBuffer(filePath, dir);
+    buf = await rawToJpegBuffer(filePath);
   } else {
     buf = await sharp(filePath)
       .rotate()

@@ -4,38 +4,72 @@ import { effectiveStars, type PhotoImage } from '../../shared/types';
 import { mediaUrl } from '../../shared/ipc';
 import { StarRating } from './StarRating';
 
-// ── Face zoom ──────────────────────────────────────────────────────────────
+// ── Shared CSS background-zoom helper ─────────────────────────────────────
 
-function FaceZoom({ previewPath, faceBbox }: {
-  previewPath: string;
-  faceBbox: { x: number; y: number; w: number; h: number };
+function BgZoom({
+  src, bbox, size, className = '', children,
+}: {
+  src: string;
+  bbox: { x: number; y: number; w: number; h: number };
+  size: number;
+  className?: string;
+  children?: React.ReactNode;
 }): React.JSX.Element {
-  // CSS background-image trick: scale image so face fills the 200×200 box.
-  const scaleX = 1 / faceBbox.w;
-  const scaleY = 1 / faceBbox.h;
-  const scale  = Math.min(scaleX, scaleY);
-
-  // Background-size as % of container (200×200).
-  // background-size: X% Y% means the image is X% * containerW wide.
-  const bgSizeX = scale * 100;
-  // background-position: where inside the enlarged image to show.
-  // "X% Y%" maps the X% point of the image to the X% point of the container.
-  const posX = faceBbox.x / (1 - faceBbox.w) * 100;
-  const posY = faceBbox.y / (1 - faceBbox.h) * 100;
+  const scale  = Math.min(1 / bbox.w, 1 / bbox.h);
+  const bgSize = scale * 100;
+  const posX   = bbox.x / Math.max(1 - bbox.w, 0.01) * 100;
+  const posY   = bbox.y / Math.max(1 - bbox.h, 0.01) * 100;
 
   return (
     <div
-      className="rounded-lg border border-slate-600 shadow-xl"
+      className={`relative overflow-hidden ${className}`}
       style={{
-        width:               200,
-        height:              200,
-        backgroundImage:     `url("${mediaUrl(previewPath)}")`,
-        backgroundRepeat:    'no-repeat',
-        backgroundSize:      `${bgSizeX.toFixed(1)}%`,
-        backgroundPosition:  `${posX.toFixed(1)}% ${posY.toFixed(1)}%`,
+        width:              size,
+        height:             size,
+        backgroundImage:    `url("${src}")`,
+        backgroundRepeat:   'no-repeat',
+        backgroundSize:     `${bgSize.toFixed(1)}%`,
+        backgroundPosition: `${posX.toFixed(1)}% ${posY.toFixed(1)}%`,
       }}
-      title="Face zoom"
-    />
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Face zoom + eye inset ─────────────────────────────────────────────────
+
+function FaceZoom({ previewPath, faceBbox, eyeBbox, allEyesOpen }: {
+  previewPath: string;
+  faceBbox: { x: number; y: number; w: number; h: number };
+  eyeBbox?: { x: number; y: number; w: number; h: number };
+  allEyesOpen?: boolean;
+}): React.JSX.Element {
+  return (
+    <div className="space-y-1.5">
+      <BgZoom
+        src={mediaUrl(previewPath)}
+        bbox={faceBbox}
+        size={220}
+        className="rounded-lg border border-slate-600 shadow-xl"
+      />
+      {eyeBbox && (
+        <div>
+          <p className="mb-1 text-xs text-slate-500">
+            Eyes{' '}
+            <span className={allEyesOpen === false ? 'text-rose-400 font-medium' : 'text-emerald-400'}>
+              {allEyesOpen === false ? '✗ closed' : '✓ open'}
+            </span>
+          </p>
+          <BgZoom
+            src={mediaUrl(previewPath)}
+            bbox={eyeBbox}
+            size={220}
+            className="rounded-lg border-2 border-slate-500 shadow-lg"
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -168,11 +202,16 @@ export function SplitView({ images, filteredImages }: {
         <div className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-slate-700 bg-slate-800 p-5">
           <h2 className="break-all text-sm font-semibold text-slate-100">{image.name}</h2>
 
-          {/* Face zoom */}
+          {/* Face zoom + eye inset */}
           {image.previewPath && eye && eye.faceBbox && (
             <div>
               <p className="mb-1.5 text-xs uppercase tracking-wide text-slate-500">Face</p>
-              <FaceZoom previewPath={image.previewPath} faceBbox={eye.faceBbox} />
+              <FaceZoom
+                previewPath={image.previewPath}
+                faceBbox={eye.faceBbox}
+                eyeBbox={eye.eyeBbox}
+                allEyesOpen={eye.allEyesOpen}
+              />
             </div>
           )}
 

@@ -106,6 +106,30 @@ def _face_bbox(lm):
     }
 
 
+# Landmarks enclosing both eyes (outer corners + brow area)
+_EYE_REGION_IDX = [
+    # Left eye outer landmarks
+    362, 263, 386, 374,
+    # Right eye outer landmarks
+    33,  133, 159, 145,
+    # Brow points (to include brow area)
+    70, 63, 105, 66, 107,  # right brow
+    336, 296, 334, 293, 300,  # left brow
+]
+
+def _eye_bbox(lm):
+    pts = [lm[i] for i in _EYE_REGION_IDX]
+    xs = [p.x for p in pts]
+    ys = [p.y for p in pts]
+    pad = 0.02
+    return {
+        "x": max(0.0, min(xs)-pad),
+        "y": max(0.0, min(ys)-pad),
+        "w": min(1.0, max(xs)-min(xs)+2*pad),
+        "h": min(1.0, max(ys)-min(ys)+2*pad),
+    }
+
+
 def analyze_face_eye(image_path: str) -> dict:
     import mediapipe as mp
 
@@ -127,6 +151,7 @@ def analyze_face_eye(image_path: str) -> dict:
     worst_tilt     = 0.0
     best_smile     = 0.0
     face_bbox_out  = None
+    eye_bbox_out   = None
 
     for i, face_lm in enumerate(result.face_landmarks):
         lm = face_lm
@@ -150,9 +175,10 @@ def analyze_face_eye(image_path: str) -> dict:
             smile  = (shapes.get("mouthSmileLeft", 0) + shapes.get("mouthSmileRight", 0)) / 2.0
             best_smile = max(best_smile, smile)
 
-        # Face bbox for the first face
+        # Bbox outputs for the first face
         if face_bbox_out is None:
             face_bbox_out = _face_bbox(lm)
+            eye_bbox_out  = _eye_bbox(lm)
 
     bad = not all_eyes_open or any_mouth_open or worst_tilt > _TILT_THRESHOLD_DEG
 
@@ -164,6 +190,7 @@ def analyze_face_eye(image_path: str) -> dict:
         "headTiltDeg":   round(worst_tilt, 1),
         "badExpression": bad,
         "faceBbox":      face_bbox_out,
+        "eyeBbox":       eye_bbox_out if face_bbox_out else None,
     }
 
 

@@ -7,6 +7,11 @@ export interface FaceBbox {
   x: number; y: number; w: number; h: number;
 }
 
+export interface EyeBbox {
+  /** Normalised bounding box around both eyes, 0–1 relative to preview. */
+  x: number; y: number; w: number; h: number;
+}
+
 export interface EyeStatus {
   facesDetected: number;
   allEyesOpen: boolean;
@@ -20,6 +25,8 @@ export interface EyeStatus {
   badExpression?: boolean;
   /** Bounding box of the primary (largest) face in the preview. */
   faceBbox?: FaceBbox;
+  /** Tight bounding box around both eyes (both eye outer corners + brows). */
+  eyeBbox?: EyeBbox;
 }
 
 /** Lightroom color label value written to xmp:Label. */
