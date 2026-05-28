@@ -203,7 +203,7 @@ export function DetailView({
             <Metric label="Sharpness"  value={image.sharpnessScore  !== undefined ? String(Math.round(image.sharpnessScore))  : '—'} />
             <Metric label="Exposure"   value={image.exposureScore   !== undefined ? `${Math.round(image.exposureScore)} (${image.exposureHint ?? 'ok'})` : '—'} />
             <Metric label="Aesthetics" value={image.aestheticsScore !== undefined ? `${image.aestheticsScore.toFixed(1)} / 10` : '—'} />
-            <Metric label="Suggested"  value={image.derivedStars    !== undefined ? `${image.derivedStars}★` : '—'} />
+            <Metric label="Suggested"  value={suggested !== undefined ? `${suggested}★` : '—'} />
             <Metric label="Written"    value={image.written ? 'yes' : 'no'} />
           </div>
 

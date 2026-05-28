@@ -347,7 +347,7 @@ export function SplitView({ images, filteredImages, getSuggested }: {
             <Row label="Sharpness" value={image.sharpnessScore !== undefined ? String(Math.round(image.sharpnessScore)) : '—'} />
             <Row label="Exposure"  value={image.exposureScore  !== undefined ? `${Math.round(image.exposureScore)} (${image.exposureHint ?? 'ok'})` : '—'} />
             <Row label="Aesthetics" value={image.aestheticsScore !== undefined ? `${image.aestheticsScore.toFixed(1)} / 10` : '—'} />
-            <Row label="Suggested" value={image.derivedStars !== undefined ? `${image.derivedStars}★` : '—'} />
+            <Row label="Suggested" value={stars !== undefined ? `${stars}★` : '—'} />
           </div>
 
           {/* Face / expression */}
