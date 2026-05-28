@@ -9,12 +9,20 @@ import { exiftoolInstance } from '../exiftool/exiftool';
 
 const THUMB_MAX = 512;
 
+// Bump whenever preview-generation logic changes (rotation, sizing, quality) so
+// previously cached previews are invalidated instead of served stale. Without
+// this, fixing the RAW rotation leaves old upside-down JPEGs cached on disk.
+const PREVIEW_CACHE_VERSION = 2;
+
 export function cacheDir(): string {
   return path.join(app.getPath('userData'), 'previews');
 }
 
 export function cacheKey(filePath: string): string {
-  return crypto.createHash('sha1').update(filePath).digest('hex');
+  return crypto
+    .createHash('sha1')
+    .update(`v${PREVIEW_CACHE_VERSION}:${filePath}`)
+    .digest('hex');
 }
 
 async function ensureCacheDir(): Promise<string> {
