@@ -10,6 +10,7 @@ export const IpcChannels = {
   writeRatings: 'write-ratings',
   clearCache: 'clear-cache',
   getHiResPreview: 'get-hires-preview',
+  trashFiles: 'trash-files',
 } as const;
 
 /** Payload pushed to the renderer as each preview finishes generating. */
@@ -68,6 +69,8 @@ export interface PhotoStarsApi {
   clearCache: () => Promise<void>;
   /** Generate (or return cached) a 2048px hi-res preview for the split-view main image. */
   getHiResPreview: (path: string, type: ImageFileType) => Promise<string | undefined>;
+  /** Move the given files to the system Recycle Bin. Returns paths that failed. */
+  trashFiles: (paths: string[]) => Promise<string[]>;
 }
 
 declare global {

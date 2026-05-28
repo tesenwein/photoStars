@@ -44,6 +44,8 @@ interface ImageStore {
   clearSelection: () => void;
   /** Set a manual star override (null clears it back to the derived value). */
   setManualStars: (path: string, stars: number | null) => void;
+  toggleMarkForDelete: (path: string) => void;
+  removeImages: (paths: string[]) => void;
   setSort: (field: SortField, dir: SortDir) => void;
   setFilter: (patch: Partial<FilterState>) => void;
   setEyeFilter: (patch: Partial<EyeFilterState>) => void;
@@ -93,6 +95,14 @@ export const useImageStore = create<ImageStore>((set) => ({
         i.path === path ? { ...i, manualStars: stars ?? undefined, written: false } : i
       ),
     })),
+  toggleMarkForDelete: (path) =>
+    set((state) => ({
+      images: state.images.map((i) =>
+        i.path === path ? { ...i, markedForDelete: !i.markedForDelete } : i
+      ),
+    })),
+  removeImages: (paths) =>
+    set((state) => ({ images: state.images.filter((i) => !paths.includes(i.path)) })),
   setSort: (field, dir) => set({ sort: { field, dir } }),
   setFilter: (patch) => set((state) => ({ filter: { ...state.filter, ...patch } })),
   setEyeFilter: (patch) =>

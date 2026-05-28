@@ -47,6 +47,7 @@ export function App(): React.JSX.Element {
   const clearSelection = useImageStore((s) => s.clearSelection);
   const relativeRating = useImageStore((s) => s.relativeRating);
   const groupBursts    = useImageStore((s) => s.groupBursts);
+  const removeImages   = useImageStore((s) => s.removeImages);
 
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -78,7 +79,8 @@ export function App(): React.JSX.Element {
 
   const [openPath, setOpenPath] = useState<string | undefined>();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [writing,  setWriting]  = useState(false);
+  const [writing,   setWriting]  = useState(false);
+  const [deleting,  setDeleting] = useState(false);
   const [backup,   setBackup]   = useState(false);
   const [writeLr,  setWriteLr]  = useState(true);
   const [status,   setStatus]   = useState<string>('');
@@ -184,6 +186,21 @@ export function App(): React.JSX.Element {
     setWriting(false);
   };
 
+  const markedCount  = images.filter((i) => i.markedForDelete).length;
+
+  const deleteMarked = async (): Promise<void> => {
+    const marked = images.filter((i) => i.markedForDelete).map((i) => i.path);
+    if (marked.length === 0) return;
+    if (!window.confirm(`Move ${marked.length} image${marked.length > 1 ? 's' : ''} to Recycle Bin?`)) return;
+    setDeleting(true);
+    setStatus(`Deleting ${marked.length}…`);
+    const failed = await window.api.trashFiles(marked);
+    const removed = marked.filter((p) => !failed.includes(p));
+    removeImages(removed);
+    setStatus(failed.length ? `Deleted ${removed.length}, ${failed.length} failed.` : `Deleted ${removed.length}.`);
+    setDeleting(false);
+  };
+
   const open         = images.find((i) => i.path === openPath);
   const pending      = images.filter((i) => !i.previewPath).length;
   const selectedCount = selected.size;
@@ -247,6 +264,17 @@ export function App(): React.JSX.Element {
             <input type="checkbox" checked={backup} onChange={(e) => setBackup(e.target.checked)} className="accent-amber-500" />
             Backup
           </label>
+
+          {markedCount > 0 && (
+            <button
+              onClick={deleteMarked}
+              disabled={deleting || writing}
+              className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-40"
+              title="Move marked images to Recycle Bin"
+            >
+              🗑 Delete marked ({markedCount})
+            </button>
+          )}
 
           {images.length > 0 && (
             <button

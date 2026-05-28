@@ -1,4 +1,4 @@
-import { ipcMain, type WebContents } from 'electron';
+import { ipcMain, shell, type WebContents } from 'electron';
 import {
   IpcChannels,
   type AnalysisReadyPayload,
@@ -77,6 +77,18 @@ export function registerIngestHandlers(): void {
 
     return images;
   });
+
+  ipcMain.handle(
+    IpcChannels.trashFiles,
+    async (_event, paths: string[]): Promise<string[]> => {
+      const failed: string[] = [];
+      for (const p of paths) {
+        try { await shell.trashItem(p); }
+        catch { failed.push(p); }
+      }
+      return failed;
+    }
+  );
 
   ipcMain.handle(
     IpcChannels.writeRatings,

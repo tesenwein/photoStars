@@ -129,6 +129,11 @@ function Thumb({
       {image.burstGroup && image.burstRank !== 1 && (
         <span className="absolute top-0.5 left-0.5 rounded-sm bg-slate-600 px-0.5 text-[8px] text-white">B</span>
       )}
+      {image.markedForDelete && (
+        <div className="absolute inset-0 bg-rose-600/40 flex items-center justify-center">
+          <span className="text-base">🗑</span>
+        </div>
+      )}
     </button>
   );
 }
@@ -140,7 +145,8 @@ export function SplitView({ images, filteredImages, getSuggested }: {
   filteredImages: PhotoImage[]; // currently visible (post-filter)
   getSuggested: (img: PhotoImage) => number | undefined;
 }): React.JSX.Element {
-  const setManualStars = useImageStore((s) => s.setManualStars);
+  const setManualStars      = useImageStore((s) => s.setManualStars);
+  const toggleMarkForDelete = useImageStore((s) => s.toggleMarkForDelete);
 
   const [idx, setIdx]         = useState(0);
   const [hiResPath, setHiRes] = useState<string | undefined>();
@@ -166,10 +172,11 @@ export function SplitView({ images, filteredImages, getSuggested }: {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft')  prev();
       if (e.key === 'ArrowRight') next();
+      if ((e.key === 'x' || e.key === 'X') && image) toggleMarkForDelete(image.path);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [prev, next]);
+  }, [prev, next, image, toggleMarkForDelete]);
 
   if (!image) {
     return (
@@ -209,6 +216,24 @@ export function SplitView({ images, filteredImages, getSuggested }: {
           <button onClick={next} disabled={clampedIdx === filteredImages.length - 1}
             className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/70 disabled:opacity-20 text-lg">
             ›
+          </button>
+
+          {/* Delete mark overlay */}
+          {image.markedForDelete && (
+            <div className="absolute inset-0 border-4 border-rose-500 pointer-events-none z-10" />
+          )}
+
+          {/* Mark for delete button */}
+          <button
+            onClick={() => toggleMarkForDelete(image.path)}
+            className={`absolute top-4 right-20 z-20 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+              image.markedForDelete
+                ? 'bg-rose-600 text-white hover:bg-rose-500'
+                : 'bg-black/50 text-white hover:bg-rose-700/80'
+            }`}
+            title="Mark for delete (X)"
+          >
+            {image.markedForDelete ? '🗑 Marked' : '🗑 Mark delete'}
           </button>
 
           {/* Position counter */}

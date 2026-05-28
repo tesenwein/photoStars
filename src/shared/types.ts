@@ -81,6 +81,8 @@ export interface PhotoImage {
   manualStars?: number;
   /** Whether the rating has been written to disk. */
   written: boolean;
+  /** Marked by the user for deletion; removed from disk on "Delete marked". */
+  markedForDelete?: boolean;
 
   /** Capture time (Unix ms) read from EXIF; used to re-bucket bursts live. */
   timestamp?: number;

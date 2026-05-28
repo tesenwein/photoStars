@@ -22,8 +22,9 @@ export function ImageTile({
   selected: boolean;
   onOpen: () => void;
 }): React.JSX.Element {
-  const toggleSelected = useImageStore((s) => s.toggleSelected);
-  const setManualStars = useImageStore((s) => s.setManualStars);
+  const toggleSelected     = useImageStore((s) => s.toggleSelected);
+  const setManualStars     = useImageStore((s) => s.setManualStars);
+  const toggleMarkForDelete = useImageStore((s) => s.toggleMarkForDelete);
 
   const stars = image.manualStars ?? suggested;
   const isDerived = image.manualStars === undefined;
@@ -31,7 +32,11 @@ export function ImageTile({
   return (
     <div
       className={`group relative cursor-pointer overflow-hidden rounded-lg border bg-white shadow-sm transition-shadow hover:shadow-md dark:bg-zinc-800 dark:shadow-none ${
-        selected ? 'border-amber-400 ring-2 ring-amber-400/40' : 'border-stone-200 dark:border-zinc-700'
+        image.markedForDelete
+          ? 'border-rose-500 ring-2 ring-rose-500/40'
+          : selected
+          ? 'border-amber-400 ring-2 ring-amber-400/40'
+          : 'border-stone-200 dark:border-zinc-700'
       }`}
       onClick={onOpen}
     >
@@ -43,6 +48,22 @@ export function ImageTile({
         className="absolute left-2 top-2 z-10 h-4 w-4 accent-amber-500"
         aria-label={`Select ${image.name}`}
       />
+      {/* Delete mark overlay */}
+      {image.markedForDelete && (
+        <div className="absolute inset-0 z-10 bg-rose-600/30 pointer-events-none" />
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); toggleMarkForDelete(image.path); }}
+        className={`absolute right-2 top-2 z-20 rounded p-0.5 text-base leading-none transition-opacity ${
+          image.markedForDelete
+            ? 'bg-rose-600 text-white opacity-100'
+            : 'bg-black/40 text-white opacity-0 group-hover:opacity-80'
+        }`}
+        title={image.markedForDelete ? 'Unmark for delete' : 'Mark for delete'}
+      >
+        🗑
+      </button>
+
       {image.written && (
         <span className="absolute right-2 top-2 z-10 rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
           written
