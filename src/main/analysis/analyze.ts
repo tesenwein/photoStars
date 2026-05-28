@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
-import { computeSharpness, computeRegionSharpness } from './sharpness';
-import { computeExposure } from './exposure';
+import sharp from 'sharp';
+import { computeSharpnessFromGrey, computeRegionSharpness } from './sharpness';
+import { computeExposureFromGrey } from './exposure';
 import { sidecar } from '../sidecar/sidecarManager';
 import { readAnalysisCache, writeAnalysisCache } from './analysisCache';
 import { isPortraitSubject } from './skinDetect';
@@ -122,20 +123,30 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
     return cached;
   }
 
-  const [sharpnessScore, exposure] = await Promise.all([
-    computeSharpness(previewPath),
-    computeExposure(previewPath),
-  ]);
+  // Decode the preview once into a greyscale raw buffer; sharpness and exposure
+  // share it instead of each re-decoding the same JPEG through sharp.
+  let sharpnessScore = 0;
+  let exposure: { score: number; hint: ExposureHint } = { score: 50, hint: 'ok' };
+  try {
+    const { data, info } = await sharp(previewPath)
+      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+      .greyscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    if (data.length > 0) {
+      sharpnessScore = computeSharpnessFromGrey(data, info.width, info.height);
+      exposure = computeExposureFromGrey(data);
+    }
+  } catch { /* decode failed — keep neutral defaults */ }
 
   const sharpNorm = normalizeSharpness(sharpnessScore);
 
   let eyeStatus: EyeStatus | undefined;
   let aestheticsScore: number | undefined;
   try {
-    [eyeStatus, aestheticsScore] = await Promise.all([
-      sidecar.analyzeFaceEye(previewPath),
-      sidecar.analyzeAesthetics(previewPath),
-    ]);
+    const combined = await sidecar.analyze(previewPath);
+    eyeStatus = combined.eyeStatus;
+    aestheticsScore = combined.aestheticsScore;
   } catch { /* sidecar unavailable */ }
 
   // Detect portrait subject via face detection or skin-tone fraction.

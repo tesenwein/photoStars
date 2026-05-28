@@ -7,6 +7,7 @@ import { FilterSortBar } from './components/FilterSortBar';
 import { SplitView } from './components/SplitView';
 import { BurstGroup } from './components/BurstGroup';
 import { SettingsPanel } from './components/SettingsPanel';
+import { Logo } from './components/Logo';
 import { useTheme } from './useTheme';
 import { assignRelativeStars } from '../shared/relativeRating';
 import { bucketBursts } from '../shared/burst';
@@ -259,9 +260,12 @@ export function App(): React.JSX.Element {
   return (
     <div className="theme-transition flex h-full flex-col bg-stone-50 text-stone-900 dark:bg-zinc-900 dark:text-zinc-100">
       <header className="flex items-center justify-between border-b border-stone-200 px-6 py-3 dark:border-zinc-800">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">PhotoStars</h1>
-          {folder && <p className="mt-0.5 text-xs text-stone-500 dark:text-zinc-400">{folder}</p>}
+        <div className="flex items-center gap-2.5">
+          <Logo size={32} />
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">PhotoStars</h1>
+            {folder && <p className="mt-0.5 text-xs text-stone-500 dark:text-zinc-400">{folder}</p>}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {status && <span className="text-sm text-stone-500 dark:text-zinc-400">{status}</span>}

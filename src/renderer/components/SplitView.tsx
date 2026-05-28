@@ -290,9 +290,9 @@ export function SplitView({ images, filteredImages, getSuggested }: {
           {/* Cull status button group */}
           <div className="absolute top-4 right-20 z-20 flex overflow-hidden rounded-full bg-black/50 text-sm font-medium">
             {([
-              { key: 'keep',    label: '✓ Keep',   active: 'bg-emerald-600 text-white', hover: 'hover:bg-emerald-700/70 text-zinc-200' },
-              { key: 'neutral', label: '○',        active: 'bg-stone-500 text-white',   hover: 'hover:bg-stone-600/70 text-zinc-200' },
-              { key: 'reject',  label: '🗑 Reject', active: 'bg-rose-600 text-white',    hover: 'hover:bg-rose-700/70 text-zinc-200' },
+              { key: 'keep',    label: '✓', active: 'bg-emerald-600 text-white', hover: 'hover:bg-emerald-700/70 text-zinc-200' },
+              { key: 'neutral', label: '○', active: 'bg-stone-500 text-white',   hover: 'hover:bg-stone-600/70 text-zinc-200' },
+              { key: 'reject',  label: '🗑', active: 'bg-rose-600 text-white',    hover: 'hover:bg-rose-700/70 text-zinc-200' },
             ] as const).map((b) => {
               const cur = image.cullStatus ?? (image.markedForDelete ? 'reject' : 'neutral');
               const isActive = cur === b.key;

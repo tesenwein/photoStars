@@ -1,6 +1,5 @@
 import React from 'react';
 import { useScoringStore } from '../store/scoringStore';
-import { DEFAULT_SCORING_CONFIG } from '../../shared/scoring';
 
 function Slider({
   label, value, min, max, step = 0.01, format,

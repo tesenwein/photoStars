@@ -7,7 +7,7 @@ import {
   type WriteRatingResult,
 } from '../../shared/ipc';
 import { scanFolder } from './scan';
-import { generatePreviews, clearPreviewCache, generateHiResPreview } from './preview';
+import { generatePreview, clearPreviewCache, generateHiResPreview } from './preview';
 import { readImageMeta } from './burstDetector';
 import { analyzeImage } from '../analysis/analyze';
 import { writeRating } from '../exiftool/writeRating';
@@ -37,26 +37,43 @@ export function registerIngestHandlers(): void {
     const sender = event.sender;
 
     // Return images immediately — renderer paints the grid right away.
-    // Timestamps + previews + analysis all stream back via events.
-    void generatePreviews(
-      images.map((i) => ({ path: i.path, type: i.type })),
-      async (result: PreviewReadyPayload) => {
-        // Read timestamp + existing rating in one exiftool call (reuses the
-        // running process) so it never blocks the initial folder return.
-        const meta = await readImageMeta(result.path).catch(() => ({ ts: -1, rating: undefined, label: undefined }));
+    // Metadata + previews + analysis all stream back via events.
+    const items = images.map((i) => ({ path: i.path, type: i.type }));
+    let cursor = 0;
+    const concurrency = 4;
+
+    const worker = async (): Promise<void> => {
+      while (cursor < items.length) {
+        const item = items[cursor++];
+
+        // One exiftool call per image: timestamp + rating/label + orientation.
+        // Orientation feeds preview generation so RAWs no longer need a second read.
+        const meta = await readImageMeta(item.path)
+          .catch(() => ({ ts: -1, rating: undefined, label: undefined, orientationDeg: 0 }));
+
+        let previewPath: string | undefined;
+        let error: string | undefined;
+        try {
+          previewPath = await generatePreview(item.path, item.type, meta.orientationDeg);
+        } catch (err) {
+          error = (err as Error).message;
+        }
+
         const enriched: PreviewReadyPayload = {
-          ...result,
+          path:           item.path,
+          previewPath,
+          error,
           timestamp:      meta.ts >= 0 ? meta.ts : undefined,
           existingRating: meta.rating,
           existingLabel:  meta.label,
         };
         if (!send(sender, IpcChannels.previewReady, enriched)) return;
-        if (!result.previewPath) return;
+        if (!previewPath) continue;
 
-        void analyzeImage(result.previewPath)
+        void analyzeImage(previewPath)
           .then((scores) => {
             const payload: AnalysisReadyPayload = {
-              path:               result.path,
+              path:               item.path,
               sharpnessScore:     scores.sharpnessScore,
               exposureScore:      scores.exposureScore,
               exposureHint:       scores.exposureHint,
@@ -72,11 +89,15 @@ export function registerIngestHandlers(): void {
           })
           .catch((err: Error) => {
             send(sender, IpcChannels.analysisReady, {
-              path:  result.path,
+              path:  item.path,
               error: err.message,
             } satisfies AnalysisReadyPayload);
           });
       }
+    };
+
+    void Promise.all(
+      Array.from({ length: Math.min(concurrency, items.length || 1) }, worker)
     );
 
     return images;

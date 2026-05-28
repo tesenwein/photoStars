@@ -9,27 +9,22 @@ export interface ExposureResult {
 export async function computeExposure(
   input: string | Buffer
 ): Promise<ExposureResult> {
-  const metadata = await sharp(input).metadata();
-  if (!metadata.width || !metadata.height) {
-    return { score: 50, hint: 'ok' };
-  }
-
-  const maxSize = 1024;
-  let width = metadata.width;
-  let height = metadata.height;
-
-  if (width > maxSize || height > maxSize) {
-    const scale = Math.min(maxSize / width, maxSize / height);
-    width = Math.round(width * scale);
-    height = Math.round(height * scale);
-  }
-
   const { data } = await sharp(input)
-    .resize(width, height, { fit: 'inside', withoutEnlargement: true })
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
     .greyscale()
     .raw()
     .toBuffer({ resolveWithObject: true });
+  if (data.length === 0) return { score: 50, hint: 'ok' };
+  return exposureFromGrey(data);
+}
 
+/** Exposure score + hint from an already-decoded greyscale raw buffer. */
+export function computeExposureFromGrey(data: Buffer): ExposureResult {
+  if (data.length === 0) return { score: 50, hint: 'ok' };
+  return exposureFromGrey(data);
+}
+
+function exposureFromGrey(data: Buffer): ExposureResult {
   const histogram = new Uint32Array(256);
   for (let i = 0; i < data.length; i++) {
     histogram[data[i]]++;

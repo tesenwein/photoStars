@@ -41,7 +41,7 @@ async function ensureCacheDir(): Promise<string> {
 // Standard EXIF Orientation → clockwise degrees to pass to sharp().rotate(deg).
 // The embedded JPEG has no Orientation tag so we read it from the source RAW
 // and apply an explicit rotation — verified correct for Leica SL2 (Orientation=8→270°).
-const EXIF_ORIENTATION_DEG: Record<number, number> = {
+export const EXIF_ORIENTATION_DEG: Record<number, number> = {
   1: 0,
   2: 0,   // mirror H — ignore mirror, only rotate
   3: 180,
@@ -62,9 +62,8 @@ async function readRawOrientationDeg(filePath: string): Promise<number> {
   }
 }
 
-async function rawToJpegBuffer(filePath: string): Promise<Buffer> {
-  // Read orientation from source RAW (the embedded JPEG has no Orientation tag).
-  const rotateDeg = await readRawOrientationDeg(filePath);
+async function rawToJpegBuffer(filePath: string, rotateDeg: number): Promise<Buffer> {
+  // rotateDeg comes from the source RAW's Orientation tag (the embedded JPEG has none).
   const tmp = path.join(os.tmpdir(), `ps_raw_${cacheKey(filePath)}.jpg`);
 
   try {
@@ -93,7 +92,8 @@ async function rawToJpegBuffer(filePath: string): Promise<Buffer> {
 
 export async function generatePreview(
   filePath: string,
-  type: ImageFileType
+  type: ImageFileType,
+  orientationDeg?: number
 ): Promise<string> {
   const dir    = await ensureCacheDir();
   const outPath = path.join(dir, `${cacheKey(filePath)}.jpg`);
@@ -106,7 +106,10 @@ export async function generatePreview(
 
   let buf: Buffer;
   if (type === 'raw') {
-    buf = await rawToJpegBuffer(filePath);
+    // Caller usually supplies the orientation (read alongside other metadata in
+    // one exiftool call); fall back to a dedicated read only if it didn't.
+    const rotateDeg = orientationDeg ?? (await readRawOrientationDeg(filePath));
+    buf = await rawToJpegBuffer(filePath, rotateDeg);
   } else {
     buf = await sharp(filePath)
       .rotate()
@@ -181,31 +184,3 @@ export async function clearPreviewCache(): Promise<void> {
   } catch { /* dir doesn't exist yet */ }
 }
 
-export interface PreviewResult {
-  path: string;
-  previewPath?: string;
-  error?: string;
-}
-
-export async function generatePreviews(
-  items: { path: string; type: ImageFileType }[],
-  onResult: (result: PreviewResult) => void | Promise<void>,
-  concurrency = 4
-): Promise<void> {
-  let cursor = 0;
-
-  async function worker(): Promise<void> {
-    while (cursor < items.length) {
-      const item = items[cursor++];
-      try {
-        const previewPath = await generatePreview(item.path, item.type);
-        onResult({ path: item.path, previewPath });
-      } catch (err) {
-        onResult({ path: item.path, error: (err as Error).message });
-      }
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(concurrency, items.length || 1) }, worker);
-  await Promise.all(workers);
-}

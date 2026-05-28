@@ -1,6 +1,7 @@
 import { exiftoolInstance } from '../exiftool/exiftool';
 import type { PhotoImage } from '../../shared/types';
 import { bucketBursts, type BurstItem, type BurstInfo } from '../../shared/burst';
+import { EXIF_ORIENTATION_DEG } from './preview';
 
 const DEFAULT_BURST_WINDOW_MS = 3_000;
 
@@ -8,14 +9,15 @@ export interface ImageMeta {
   ts: number;           // Unix ms, -1 if unknown
   rating?: number;      // 0–5 from XMP:Rating / EXIF Rating
   label?: string;       // xmp:Label (Green / Blue / Yellow / Red / …)
+  orientationDeg: number; // clockwise rotation to display upright (0 if unknown)
 }
 
-/** Single exiftool call that reads timestamp + existing rating/label together. */
+/** Single exiftool call that reads timestamp + existing rating/label + orientation together. */
 export async function readImageMeta(filePath: string): Promise<ImageMeta> {
   try {
     const tags = await exiftoolInstance.read(filePath, [
       'CreateDate', 'DateTimeOriginal', 'SubSecTimeOriginal',
-      'Rating', 'XMP:Rating', 'Label', 'XMP:Label',
+      'Rating', 'XMP:Rating', 'Label', 'XMP:Label', 'Orientation',
     ]);
 
     // Timestamp
@@ -42,9 +44,12 @@ export async function readImageMeta(filePath: string): Promise<ImageMeta> {
     const rawLabel = (tags as Record<string, unknown>)['XMP:Label'] ?? tags.Label;
     const label = typeof rawLabel === 'string' && rawLabel ? rawLabel : undefined;
 
-    return { ts, rating, label };
+    const orientation = typeof tags.Orientation === 'number' ? tags.Orientation : 1;
+    const orientationDeg = EXIF_ORIENTATION_DEG[orientation] ?? 0;
+
+    return { ts, rating, label, orientationDeg };
   } catch {
-    return { ts: -1 };
+    return { ts: -1, orientationDeg: 0 };
   }
 }
 

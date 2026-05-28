@@ -1,18 +1,29 @@
 import sharp from 'sharp';
 
-/** Laplacian variance of a pre-loaded raw greyscale pixel buffer. */
+/** Laplacian variance of a pre-loaded raw greyscale pixel buffer.
+ * Single streaming pass (sum + sum-of-squares) — avoids allocating a
+ * per-pixel array and a second reduce pass over megapixel-sized images. */
 function laplacianVariance(data: Buffer, width: number, height: number): number {
-  const values: number[] = [];
+  let sum = 0;
+  let sumSq = 0;
+  let n = 0;
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
       const c = y * width + x;
       const lap = 4 * data[c] - data[(y-1)*width+x] - data[(y+1)*width+x] - data[y*width+(x-1)] - data[y*width+(x+1)];
-      values.push(lap);
+      sum += lap;
+      sumSq += lap * lap;
+      n++;
     }
   }
-  if (values.length === 0) return 0;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  return values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+  if (n === 0) return 0;
+  const mean = sum / n;
+  return sumSq / n - mean * mean;
+}
+
+/** Laplacian variance from an already-decoded greyscale raw buffer. */
+export function computeSharpnessFromGrey(data: Buffer, width: number, height: number): number {
+  return laplacianVariance(data, width, height);
 }
 
 /**

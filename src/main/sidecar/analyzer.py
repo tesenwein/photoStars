@@ -146,11 +146,14 @@ def _eye_bbox(lm):
 
 
 def analyze_face_eye(image_path: str) -> dict:
-    import mediapipe as mp
-
     img_bgr = cv2.imread(image_path)
     if img_bgr is None:
         raise ValueError(f"Cannot read image: {image_path}")
+    return _face_eye_from_img(img_bgr)
+
+
+def _face_eye_from_img(img_bgr) -> dict:
+    import mediapipe as mp
 
     h, w = img_bgr.shape[:2]
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
@@ -215,7 +218,10 @@ def analyze_aesthetics(image_path: str) -> float:
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
+    return _aesthetics_from_img(img)
 
+
+def _aesthetics_from_img(img) -> float:
     img_f = img.astype(np.float32)
     B, G, R = cv2.split(img_f)
 
@@ -241,7 +247,13 @@ def handle(req: dict) -> dict:
     req_type = req.get("type")
     img_path = req.get("image_path", "")
     try:
-        if req_type == "face_eye":
+        if req_type == "analyze":
+            img = cv2.imread(img_path)
+            if img is None:
+                raise ValueError(f"Cannot read image: {img_path}")
+            result = _face_eye_from_img(img)
+            result["aestheticsScore"] = _aesthetics_from_img(img)
+        elif req_type == "face_eye":
             result = analyze_face_eye(img_path)
         elif req_type == "aesthetics":
             result = {"aestheticsScore": analyze_aesthetics(img_path)}
