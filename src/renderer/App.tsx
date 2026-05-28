@@ -197,6 +197,8 @@ export function App(): React.JSX.Element {
     if (!folder) return;
     clearSelection();
     setImages([]);
+    setStatus('Clearing cache…');
+    await window.api.clearCache();
     setStatus('Scanning…');
     const imgs = await window.api.ingestFolder(folder);
     setImages(imgs);
@@ -325,20 +327,6 @@ export function App(): React.JSX.Element {
             </button>
           )}
 
-          {images.length > 0 && (
-            <button
-              onClick={async () => {
-                setStatus('Clearing cache…');
-                await window.api.clearCache();
-                setStatus('Cache cleared — re-open folder to re-analyse.');
-              }}
-              disabled={writing}
-              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-stone-500 hover:bg-stone-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-              title="Delete cached previews and analysis — forces full re-run"
-            >
-              Clear cache
-            </button>
-          )}
           {folder && (
             <button
               onClick={handleRescan}
