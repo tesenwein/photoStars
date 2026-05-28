@@ -51,19 +51,19 @@ function FaceZoom({ previewPath, faceBbox, eyeBbox, allEyesOpen }: {
         src={mediaUrl(previewPath)}
         bbox={faceBbox}
         size={220}
-        className="rounded-lg border border-slate-600 shadow-xl"
+        className="rounded-lg border border-stone-300 shadow-xl dark:border-zinc-600"
       />
       {eyeBbox && (
         <div>
-          <p className="mb-1 text-xs text-slate-500">
+          <p className="mb-1 text-xs text-stone-400 dark:text-zinc-500">
             Eyes{' '}
-            <span className={allEyesOpen === false ? 'text-rose-400 font-medium' : 'text-emerald-400'}>
+            <span className={allEyesOpen === false ? 'text-rose-500 font-medium dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
               {allEyesOpen === false ? '✗ closed' : '✓ open'}
             </span>
           </p>
           {/* Wide landscape panel — eyes are side-by-side */}
           <div
-            className="rounded-lg border-2 border-slate-500 shadow-lg overflow-hidden"
+            className="rounded-lg border-2 border-stone-400 shadow-lg overflow-hidden dark:border-zinc-500"
             style={{
               width: 220,
               height: 100,
@@ -83,9 +83,9 @@ function FaceZoom({ previewPath, faceBbox, eyeBbox, allEyesOpen }: {
 
 function Row({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
-    <div className="flex justify-between border-b border-slate-700 py-1.5 text-sm">
-      <span className="text-slate-400">{label}</span>
-      <span className="font-mono text-slate-100">{value}</span>
+    <div className="flex justify-between border-b border-stone-200 py-1.5 text-sm dark:border-zinc-700">
+      <span className="text-stone-500 dark:text-zinc-400">{label}</span>
+      <span className="font-mono text-stone-900 dark:text-zinc-100">{value}</span>
     </div>
   );
 }
@@ -115,8 +115,8 @@ function Thumb({
         <img src={mediaUrl(image.previewPath)} alt={image.name}
           className="h-full w-full object-cover" />
       ) : (
-        <div className="h-full w-full bg-slate-800 flex items-center justify-center">
-          <span className="text-slate-600 text-xs">…</span>
+        <div className="h-full w-full bg-stone-200 flex items-center justify-center dark:bg-zinc-800">
+          <span className="text-stone-400 text-xs dark:text-zinc-600">…</span>
         </div>
       )}
       {stars !== undefined && (
@@ -161,7 +161,7 @@ export function SplitView({ images, filteredImages }: {
 
   if (!image) {
     return (
-      <div className="flex flex-1 items-center justify-center text-slate-500">
+      <div className="flex flex-1 items-center justify-center text-stone-400 dark:text-zinc-500">
         No images to show.
       </div>
     );
@@ -177,7 +177,7 @@ export function SplitView({ images, filteredImages }: {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Large preview */}
-        <div className="relative flex flex-1 items-center justify-center bg-black">
+        <div className="relative flex flex-1 items-center justify-center bg-stone-100 dark:bg-black">
           {image.previewPath ? (
             <img
               src={mediaUrl(image.previewPath)}
@@ -185,7 +185,7 @@ export function SplitView({ images, filteredImages }: {
               className="max-h-full max-w-full object-contain"
             />
           ) : (
-            <span className="text-slate-600">Loading preview…</span>
+            <span className="text-stone-400 dark:text-zinc-600">Loading preview…</span>
           )}
 
           {/* Arrow buttons */}
@@ -199,19 +199,19 @@ export function SplitView({ images, filteredImages }: {
           </button>
 
           {/* Position counter */}
-          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-slate-300">
+          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-zinc-200">
             {clampedIdx + 1} / {filteredImages.length}
           </span>
         </div>
 
         {/* Right sidebar */}
-        <div className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-slate-700 bg-slate-800 p-5">
-          <h2 className="break-all text-sm font-semibold text-slate-100">{image.name}</h2>
+        <div className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-stone-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-800">
+          <h2 className="break-all text-sm font-semibold text-stone-900 dark:text-zinc-100">{image.name}</h2>
 
           {/* Face zoom + eye inset */}
           {image.previewPath && eye && eye.faceBbox && (
             <div>
-              <p className="mb-1.5 text-xs uppercase tracking-wide text-slate-500">Face</p>
+              <p className="mb-1.5 text-xs uppercase tracking-wide text-stone-400 dark:text-zinc-500">Face</p>
               <FaceZoom
                 previewPath={image.previewPath}
                 faceBbox={eye.faceBbox}
@@ -223,7 +223,7 @@ export function SplitView({ images, filteredImages }: {
 
           {/* Star rating */}
           <div>
-            <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">
+            <p className="mb-1 text-xs uppercase tracking-wide text-stone-400 dark:text-zinc-500">
               Rating {isDerived ? '(suggested)' : '(manual)'}
             </p>
             <StarRating
@@ -234,7 +234,7 @@ export function SplitView({ images, filteredImages }: {
             />
             {!isDerived && (
               <button onClick={() => setManualStars(image.path, null)}
-                className="mt-1 text-xs text-slate-400 hover:text-slate-200">
+                className="mt-1 text-xs text-stone-500 hover:text-stone-700 dark:text-zinc-400 dark:hover:text-zinc-200">
                 Reset to suggestion
               </button>
             )}
@@ -242,7 +242,7 @@ export function SplitView({ images, filteredImages }: {
 
           {/* Scores */}
           <div>
-            <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">Scores</p>
+            <p className="mb-1 text-xs uppercase tracking-wide text-stone-400 dark:text-zinc-500">Scores</p>
             <Row label="Sharpness" value={image.sharpnessScore !== undefined ? String(Math.round(image.sharpnessScore)) : '—'} />
             <Row label="Exposure"  value={image.exposureScore  !== undefined ? `${Math.round(image.exposureScore)} (${image.exposureHint ?? 'ok'})` : '—'} />
             <Row label="Aesthetics" value={image.aestheticsScore !== undefined ? `${image.aestheticsScore.toFixed(1)} / 10` : '—'} />
@@ -252,9 +252,9 @@ export function SplitView({ images, filteredImages }: {
           {/* Face / expression */}
           {eye && (
             <div>
-              <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">Face</p>
+              <p className="mb-1 text-xs uppercase tracking-wide text-stone-400 dark:text-zinc-500">Face</p>
               {eye.facesDetected === 0 ? (
-                <p className="text-xs text-slate-500">No faces detected</p>
+                <p className="text-xs text-stone-400 dark:text-zinc-500">No faces detected</p>
               ) : (
                 <>
                   <Row label="Faces" value={String(eye.facesDetected)} />
@@ -269,7 +269,7 @@ export function SplitView({ images, filteredImages }: {
                     <Row label="Tilt" value={`${eye.headTiltDeg.toFixed(1)}°${Math.abs(eye.headTiltDeg) > 25 ? ' ✗' : ' ✓'}`} />
                   )}
                   {eye.badExpression && (
-                    <p className="mt-1 rounded bg-rose-900/40 px-2 py-1 text-xs text-rose-300">
+                    <p className="mt-1 rounded bg-rose-100 px-2 py-1 text-xs text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
                       Bad expression flagged
                     </p>
                   )}
@@ -281,7 +281,7 @@ export function SplitView({ images, filteredImages }: {
           {/* Burst */}
           {image.burstGroup && (
             <div>
-              <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">Burst</p>
+              <p className="mb-1 text-xs uppercase tracking-wide text-stone-400 dark:text-zinc-500">Burst</p>
               <Row label="Group" value={image.burstGroup} />
               <Row label="Rank"  value={`#${image.burstRank ?? '?'} in burst`} />
             </div>
@@ -290,7 +290,7 @@ export function SplitView({ images, filteredImages }: {
       </div>
 
       {/* ── Filmstrip ───────────────────────────────────────────────── */}
-      <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-slate-700 bg-slate-900 px-4 py-2">
+      <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-stone-200 bg-stone-100/60 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900">
         {filteredImages.map((img, i) => (
           <Thumb key={img.path} image={img} active={i === clampedIdx} onClick={() => setIdx(i)} />
         ))}

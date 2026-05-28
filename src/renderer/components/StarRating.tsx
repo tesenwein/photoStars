@@ -17,7 +17,9 @@ export function StarRating({ value, derived, size = 'sm', onChange }: StarRating
     <div className={`flex ${interactive ? 'cursor-pointer' : ''}`} role="radiogroup" aria-label="rating">
       {[1, 2, 3, 4, 5].map((n) => {
         const on = n <= filled;
-        const color = on ? (derived ? 'text-amber-400/60' : 'text-amber-400') : 'text-slate-600';
+        const color = on
+          ? (derived ? 'text-amber-400/60' : 'text-amber-400')
+          : 'text-stone-300 dark:text-zinc-600';
         return (
           <span
             key={n}

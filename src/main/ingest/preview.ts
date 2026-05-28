@@ -29,39 +29,54 @@ async function ensureCacheDir(): Promise<string> {
  * it is stored in raw sensor (landscape) orientation — so we must read the
  * Orientation from the DNG itself and apply an explicit rotation.
  */
-async function rawToJpegBuffer(filePath: string): Promise<Buffer> {
-  const tmp = path.join(os.tmpdir(), `ps_raw_${cacheKey(filePath)}.jpg`);
+// Standard EXIF Orientation → clockwise degrees to pass to sharp().rotate(deg).
+// The embedded JPEG has no Orientation tag so we read it from the source RAW
+// and apply an explicit rotation — verified correct for Leica SL2 (Orientation=8→270°).
+const EXIF_ORIENTATION_DEG: Record<number, number> = {
+  1: 0,
+  2: 0,   // mirror H — ignore mirror, only rotate
+  3: 180,
+  4: 180, // mirror V — treat as 180°
+  5: 90,
+  6: 90,  // camera rotated CCW (portrait right)
+  7: 270,
+  8: 270, // camera rotated CW  (portrait left)  ← Leica SL2 confirmed
+};
+
+async function readRawOrientationDeg(filePath: string): Promise<number> {
   try {
-    // 1. Extract the embedded JPEG — the highest-quality preview the camera wrote.
-    await exiftoolInstance.extractJpgFromRaw(filePath, tmp);
-
-    // 2. The embedded JPEG usually has no Orientation tag (stored in sensor/landscape
-    //    order). Copy the Orientation from the source RAW into the temp JPEG so that
-    //    sharp().rotate() (no argument) can auto-correct it — works for any camera.
     const tags = await exiftoolInstance.read(filePath, ['Orientation']);
-    const orientation = typeof tags.Orientation === 'number' ? tags.Orientation : 1;
-    if (orientation !== 1) {
-      await exiftoolInstance.write(tmp, { Orientation: orientation }, ['-overwrite_original']);
-    }
+    const o = typeof tags.Orientation === 'number' ? tags.Orientation : 1;
+    return EXIF_ORIENTATION_DEG[o] ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
-    // 3. sharp().rotate() reads the EXIF Orientation we just wrote and corrects it.
+async function rawToJpegBuffer(filePath: string): Promise<Buffer> {
+  // Read orientation from source RAW (the embedded JPEG has no Orientation tag).
+  const rotateDeg = await readRawOrientationDeg(filePath);
+  const tmp = path.join(os.tmpdir(), `ps_raw_${cacheKey(filePath)}.jpg`);
+
+  try {
+    await exiftoolInstance.extractJpgFromRaw(filePath, tmp);
     const buf = await fs.readFile(tmp);
     if (buf.length > 10_000) {
       return sharp(buf)
-        .rotate()   // auto-orient from EXIF — universal for all cameras
+        .rotate(rotateDeg)  // explicit — no EXIF auto-detect (embedded JPEG has no tag)
         .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
     }
   } catch {
-    // embedded JPEG not available — fall through to direct libraw decode
+    // embedded JPEG not available — fall through
   } finally {
     fs.unlink(tmp).catch(() => undefined);
   }
 
-  // Fall back: sharp/libraw direct decode — also handles orientation via .rotate().
-  return sharp(filePath)
-    .rotate()
+  // Fall back: sharp/libraw direct decode with explicit rotation.
+  return sharp(filePath, { failOn: 'none' })
+    .rotate(rotateDeg)
     .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 80 })
     .toBuffer();

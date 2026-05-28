@@ -4,6 +4,7 @@ import { ImageTile } from './components/ImageTile';
 import { DetailView } from './components/DetailView';
 import { FilterSortBar } from './components/FilterSortBar';
 import { SplitView } from './components/SplitView';
+import { useTheme } from './useTheme';
 import { effectiveStars, lrLabel, lrPickLabel, type PhotoImage } from '../shared/types';
 import type { WriteRatingItem } from '../shared/ipc';
 
@@ -36,6 +37,8 @@ export function App(): React.JSX.Element {
   const setImages      = useImageStore((s) => s.setImages);
   const updateImage    = useImageStore((s) => s.updateImage);
   const clearSelection = useImageStore((s) => s.clearSelection);
+
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const [openPath, setOpenPath] = useState<string | undefined>();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -127,31 +130,31 @@ export function App(): React.JSX.Element {
   const selectedCount = selected.size;
 
   return (
-    <div className="flex h-full flex-col bg-slate-900 text-slate-100">
-      <header className="flex items-center justify-between border-b border-slate-700 px-6 py-3">
+    <div className="theme-transition flex h-full flex-col bg-stone-50 text-stone-900 dark:bg-zinc-900 dark:text-zinc-100">
+      <header className="flex items-center justify-between border-b border-stone-200 px-6 py-3 dark:border-zinc-800">
         <div>
-          <h1 className="text-xl font-semibold">PhotoStars</h1>
-          {folder && <p className="mt-0.5 text-xs text-slate-400">{folder}</p>}
+          <h1 className="text-xl font-semibold tracking-tight">PhotoStars</h1>
+          {folder && <p className="mt-0.5 text-xs text-stone-500 dark:text-zinc-400">{folder}</p>}
         </div>
         <div className="flex items-center gap-3">
-          {status && <span className="text-sm text-slate-400">{status}</span>}
+          {status && <span className="text-sm text-stone-500 dark:text-zinc-400">{status}</span>}
           {images.length > 0 && (
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-stone-500 dark:text-zinc-400">
               {images.length} images{pending > 0 ? ` · ${pending} loading` : ''}
             </span>
           )}
 
           {/* View toggle */}
           {images.length > 0 && (
-            <div className="flex overflow-hidden rounded border border-slate-600 text-sm">
+            <div className="flex overflow-hidden rounded-md border border-stone-300 text-sm dark:border-zinc-700">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`px-3 py-1.5 ${viewMode === 'grid' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+                className={`px-3 py-1.5 ${viewMode === 'grid' ? 'bg-stone-200 text-stone-900 dark:bg-zinc-700 dark:text-white' : 'text-stone-500 hover:bg-stone-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
                 title="Grid view"
               >⊞</button>
               <button
                 onClick={() => setViewMode('split')}
-                className={`px-3 py-1.5 ${viewMode === 'split' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+                className={`px-3 py-1.5 ${viewMode === 'split' ? 'bg-stone-200 text-stone-900 dark:bg-zinc-700 dark:text-white' : 'text-stone-500 hover:bg-stone-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
                 title="Split view"
               >▤</button>
             </div>
@@ -162,14 +165,14 @@ export function App(): React.JSX.Element {
               <button
                 onClick={() => apply('selected')}
                 disabled={writing || selectedCount === 0}
-                className="rounded border border-slate-600 px-3 py-1.5 text-sm hover:bg-slate-800 disabled:opacity-40"
+                className="rounded-md border border-stone-300 px-3 py-1.5 text-sm hover:bg-stone-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
               >
                 Apply selected{selectedCount ? ` (${selectedCount})` : ''}
               </button>
               <button
                 onClick={() => apply('all')}
                 disabled={writing}
-                className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500 disabled:opacity-40"
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
               >
                 Apply all
               </button>
@@ -177,12 +180,12 @@ export function App(): React.JSX.Element {
           )}
 
           {/* Options */}
-          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-400">
-            <input type="checkbox" checked={writeLr} onChange={(e) => setWriteLr(e.target.checked)} className="accent-amber-400" />
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-stone-500 dark:text-zinc-400">
+            <input type="checkbox" checked={writeLr} onChange={(e) => setWriteLr(e.target.checked)} className="accent-amber-500" />
             LR labels
           </label>
-          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-400">
-            <input type="checkbox" checked={backup} onChange={(e) => setBackup(e.target.checked)} className="accent-amber-400" />
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-stone-500 dark:text-zinc-400">
+            <input type="checkbox" checked={backup} onChange={(e) => setBackup(e.target.checked)} className="accent-amber-500" />
             Backup
           </label>
 
@@ -194,7 +197,7 @@ export function App(): React.JSX.Element {
                 setStatus('Cache cleared — re-open folder to re-analyse.');
               }}
               disabled={writing}
-              className="rounded border border-slate-600 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800 disabled:opacity-40"
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-stone-500 hover:bg-stone-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
               title="Delete cached previews and analysis — forces full re-run"
             >
               Clear cache
@@ -203,9 +206,19 @@ export function App(): React.JSX.Element {
           <button
             onClick={handleOpenFolder}
             disabled={writing}
-            className="rounded bg-amber-500 px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-40"
+            className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-stone-900 hover:bg-amber-400 disabled:opacity-40"
           >
             Open folder
+          </button>
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="rounded-md border border-stone-300 px-2.5 py-1.5 text-sm text-stone-600 hover:bg-stone-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? '☀' : '☾'}
           </button>
         </div>
       </header>
@@ -217,7 +230,7 @@ export function App(): React.JSX.Element {
       ) : (
         <main className="flex-1 overflow-y-auto p-6">
           {visibleImages.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-slate-400">
+            <div className="flex h-full items-center justify-center text-stone-400 dark:text-zinc-500">
               <p>{images.length === 0 ? 'Open a folder to load photos.' : 'No images match the current filters.'}</p>
             </div>
           ) : (

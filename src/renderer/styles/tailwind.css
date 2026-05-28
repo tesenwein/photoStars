@@ -8,3 +8,17 @@ body,
   height: 100%;
   margin: 0;
 }
+
+body {
+  background-color: #fafaf9; /* stone-50 */
+}
+
+html.dark body {
+  background-color: #18181b; /* zinc-900 */
+}
+
+/* Smooth theme transitions on color-bearing surfaces */
+.theme-transition,
+.theme-transition * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
