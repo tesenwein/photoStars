@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useImageStore } from '../store/imageStore';
-import { effectiveStars, type PhotoImage } from '../../shared/types';
+import { type PhotoImage } from '../../shared/types';
 import { mediaUrl } from '../../shared/ipc';
 import { StarRating } from './StarRating';
 
@@ -93,15 +93,14 @@ function Row({ label, value }: { label: string; value: string }): React.JSX.Elem
 // ── Filmstrip thumb ────────────────────────────────────────────────────────
 
 function Thumb({
-  image, active, onClick,
-}: { image: PhotoImage; active: boolean; onClick: () => void }): React.JSX.Element {
+  image, stars, active, onClick,
+}: { image: PhotoImage; stars?: number; active: boolean; onClick: () => void }): React.JSX.Element {
   const ref = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   }, [active]);
 
-  const stars = effectiveStars(image);
   return (
     <button
       ref={ref}
@@ -136,9 +135,10 @@ function Thumb({
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function SplitView({ images, filteredImages }: {
+export function SplitView({ images, filteredImages, getSuggested }: {
   images: PhotoImage[];        // full list for updateImage
   filteredImages: PhotoImage[]; // currently visible (post-filter)
+  getSuggested: (img: PhotoImage) => number | undefined;
 }): React.JSX.Element {
   const setManualStars = useImageStore((s) => s.setManualStars);
 
@@ -167,7 +167,7 @@ export function SplitView({ images, filteredImages }: {
     );
   }
 
-  const stars      = effectiveStars(image);
+  const stars      = image.manualStars ?? getSuggested(image);
   const isDerived  = image.manualStars === undefined;
   const eye        = image.eyeStatus;
 
@@ -282,8 +282,8 @@ export function SplitView({ images, filteredImages }: {
           {image.burstGroup && (
             <div>
               <p className="mb-1 text-xs uppercase tracking-wide text-stone-400 dark:text-zinc-500">Burst</p>
-              <Row label="Group" value={image.burstGroup} />
-              <Row label="Rank"  value={`#${image.burstRank ?? '?'} in burst`} />
+              <Row label="Shots" value={`${images.filter((i) => i.burstGroup === image.burstGroup).length} in burst`} />
+              <Row label="Rank"  value={image.burstRank === 1 ? '#1 (best)' : `#${image.burstRank ?? '?'}`} />
             </div>
           )}
         </div>
@@ -292,7 +292,13 @@ export function SplitView({ images, filteredImages }: {
       {/* ── Filmstrip ───────────────────────────────────────────────── */}
       <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-stone-200 bg-stone-100/60 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900">
         {filteredImages.map((img, i) => (
-          <Thumb key={img.path} image={img} active={i === clampedIdx} onClick={() => setIdx(i)} />
+          <Thumb
+            key={img.path}
+            image={img}
+            stars={img.manualStars ?? getSuggested(img)}
+            active={i === clampedIdx}
+            onClick={() => setIdx(i)}
+          />
         ))}
       </div>
     </div>

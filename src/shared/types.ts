@@ -71,14 +71,20 @@ export interface PhotoImage {
   /** True when faces or skin tones detected — portrait weights applied. */
   isPortrait?: boolean;
 
-  /** Stars derived by the scoring pipeline (0-5). */
+  /** Continuous 0–1 quality score (pre-rounding) used to rank images relative
+   * to the rest of the shoot. Penalties are applied on top during ranking. */
+  qualityScore?: number;
+  /** Stars derived by the scoring pipeline (0-5). Absolute per-image fallback
+   * used when relative (whole-shoot curve) rating is off or unavailable. */
   derivedStars?: number;
   /** Manual override set by the user (0-5). */
   manualStars?: number;
   /** Whether the rating has been written to disk. */
   written: boolean;
 
-  /** Burst group ID (SHA of rounded timestamp); set when ≥2 shots within 3 s. */
+  /** Capture time (Unix ms) read from EXIF; used to re-bucket bursts live. */
+  timestamp?: number;
+  /** Burst group ID; set when ≥2 shots fall within the burst window. */
   burstGroup?: string;
   /** 1 = best in burst, 2 = second-best, etc. */
   burstRank?: number;

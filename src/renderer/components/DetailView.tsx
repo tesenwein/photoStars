@@ -1,6 +1,5 @@
 import React from 'react';
 import type { PhotoImage } from '../../shared/types';
-import { effectiveStars } from '../../shared/types';
 import { mediaUrl } from '../../shared/ipc';
 import { useImageStore } from '../store/imageStore';
 import { StarRating } from './StarRating';
@@ -14,9 +13,13 @@ function Metric({ label, value }: { label: string; value: string }): React.JSX.E
   );
 }
 
-export function DetailView({ image, onClose }: { image: PhotoImage; onClose: () => void }): React.JSX.Element {
+export function DetailView({ image, suggested, onClose }: {
+  image: PhotoImage;
+  suggested?: number;
+  onClose: () => void;
+}): React.JSX.Element {
   const setManualStars = useImageStore((s) => s.setManualStars);
-  const stars = effectiveStars(image);
+  const stars = image.manualStars ?? suggested;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8" onClick={onClose}>
@@ -107,7 +110,7 @@ export function DetailView({ image, onClose }: { image: PhotoImage; onClose: () 
             {image.burstGroup && (
               <Metric
                 label="Burst"
-                value={`group ${image.burstGroup} · rank ${image.burstRank ?? '?'}`}
+                value={image.burstRank === 1 ? 'best of burst' : `#${image.burstRank ?? '?'} in burst`}
               />
             )}
             <Metric label="Suggested" value={image.derivedStars !== undefined ? `${image.derivedStars}★` : '—'} />

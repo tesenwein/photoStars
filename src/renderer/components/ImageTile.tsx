@@ -1,6 +1,5 @@
 import React from 'react';
 import type { PhotoImage } from '../../shared/types';
-import { effectiveStars } from '../../shared/types';
 import { mediaUrl } from '../../shared/ipc';
 import { useImageStore } from '../store/imageStore';
 import { StarRating } from './StarRating';
@@ -13,17 +12,20 @@ const hintColor: Record<string, string> = {
 
 export function ImageTile({
   image,
+  suggested,
   selected,
   onOpen,
 }: {
   image: PhotoImage;
+  /** Suggested (derived/relative) stars; manual override wins when present. */
+  suggested?: number;
   selected: boolean;
   onOpen: () => void;
 }): React.JSX.Element {
   const toggleSelected = useImageStore((s) => s.toggleSelected);
   const setManualStars = useImageStore((s) => s.setManualStars);
 
-  const stars = effectiveStars(image);
+  const stars = image.manualStars ?? suggested;
   const isDerived = image.manualStars === undefined;
 
   return (

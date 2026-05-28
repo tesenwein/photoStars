@@ -1,5 +1,5 @@
 import React from 'react';
-import { useImageStore, type SortField } from '../store/imageStore';
+import { useImageStore, type SortField, type EyeFilterState } from '../store/imageStore';
 
 const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'name',       label: 'Name' },
@@ -9,11 +9,44 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'aesthetics', label: 'Aesthetics' },
 ];
 
+const EYE_FILTERS: { key: keyof EyeFilterState; label: string; title: string }[] = [
+  { key: 'facesOnly',    label: 'Faces',     title: 'Only images with a detected face' },
+  { key: 'eyesOpenOnly', label: 'Eyes open', title: 'Only images where all detected eyes are open' },
+  { key: 'hideFlagged',  label: 'No flags',  title: 'Hide images flagged for closed eyes / open mouth / extreme tilt' },
+  { key: 'smilingOnly',  label: 'Smiling',   title: 'Only images with a pronounced smile' },
+];
+
+function Chip({ active, onClick, title, children }: {
+  active: boolean;
+  onClick: () => void;
+  title?: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`rounded px-2 py-0.5 ${
+        active
+          ? 'bg-amber-500 text-stone-900'
+          : 'bg-white shadow-sm hover:bg-stone-50 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function FilterSortBar(): React.JSX.Element {
-  const sort      = useImageStore((s) => s.sort);
-  const filter    = useImageStore((s) => s.filter);
-  const setSort   = useImageStore((s) => s.setSort);
-  const setFilter = useImageStore((s) => s.setFilter);
+  const sort              = useImageStore((s) => s.sort);
+  const filter            = useImageStore((s) => s.filter);
+  const relativeRating    = useImageStore((s) => s.relativeRating);
+  const groupBursts       = useImageStore((s) => s.groupBursts);
+  const setSort           = useImageStore((s) => s.setSort);
+  const setFilter         = useImageStore((s) => s.setFilter);
+  const setEyeFilter      = useImageStore((s) => s.setEyeFilter);
+  const setRelativeRating = useImageStore((s) => s.setRelativeRating);
+  const setGroupBursts    = useImageStore((s) => s.setGroupBursts);
 
   return (
     <div className="flex flex-wrap items-center gap-4 border-b border-stone-200 bg-stone-100/60 px-6 py-2 text-xs text-stone-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
@@ -84,6 +117,34 @@ export function FilterSortBar(): React.JSX.Element {
         <span>Best only</span>
       </label>
 
+      {/* Group bursts */}
+      <label className="flex cursor-pointer items-center gap-1.5">
+        <input
+          type="checkbox"
+          checked={groupBursts}
+          onChange={(e) => setGroupBursts(e.target.checked)}
+          className="accent-amber-500"
+        />
+        <span>Group bursts</span>
+      </label>
+
+      <div className="h-4 w-px bg-stone-300 dark:bg-zinc-700" />
+
+      {/* Eye / face filters */}
+      <div className="flex items-center gap-2">
+        <span className="text-stone-400 dark:text-zinc-500">Faces</span>
+        {EYE_FILTERS.map((f) => (
+          <Chip
+            key={f.key}
+            active={filter.eyes[f.key]}
+            onClick={() => setEyeFilter({ [f.key]: !filter.eyes[f.key] })}
+            title={f.title}
+          >
+            {f.label}
+          </Chip>
+        ))}
+      </div>
+
       <div className="h-4 w-px bg-stone-300 dark:bg-zinc-700" />
 
       {/* Unwritten only */}
@@ -95,6 +156,20 @@ export function FilterSortBar(): React.JSX.Element {
           className="accent-amber-500"
         />
         <span>Unwritten only</span>
+      </label>
+
+      {/* Relative rating */}
+      <label
+        className="flex cursor-pointer items-center gap-1.5"
+        title="Rate relative to the whole shoot (top shots get more stars as the set grows). Off = absolute per-image score."
+      >
+        <input
+          type="checkbox"
+          checked={relativeRating}
+          onChange={(e) => setRelativeRating(e.target.checked)}
+          className="accent-amber-500"
+        />
+        <span>Relative rating</span>
       </label>
     </div>
   );

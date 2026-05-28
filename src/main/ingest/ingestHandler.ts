@@ -8,7 +8,8 @@ import {
 } from '../../shared/ipc';
 import { scanFolder } from './scan';
 import { generatePreviews, clearPreviewCache } from './preview';
-import { detectBursts } from './burstDetector';
+import { readTimestamps } from './burstDetector';
+import { bucketBursts } from '../../shared/burst';
 import { analyzeImage } from '../analysis/analyze';
 import { writeRating } from '../exiftool/writeRating';
 
@@ -28,16 +29,19 @@ export function registerIngestHandlers(): void {
     const images = await scanFolder(folder);
     const sender = event.sender;
 
-    // Burst detection runs concurrently with preview generation.
-    const burstPromise = detectBursts(images, burstWindowMs).then((bursts) => {
-      for (const [path, info] of bursts) {
-        const img = images.find((i) => i.path === path);
-        if (img) {
-          img.burstGroup = info.burstGroup;
-          img.burstRank  = info.burstRank;
-        }
-      }
-    }).catch(() => { /* non-fatal */ });
+    // Read capture timestamps once, attach them to the images, and do the
+    // initial burst grouping. Timestamps travel to the renderer so it can
+    // re-bucket bursts live when the window slider changes — no re-ingest.
+    const items = await readTimestamps(images);
+    const tsByPath = new Map(items.map((i) => [i.path, i.ts]));
+    for (const img of images) {
+      const ts = tsByPath.get(img.path);
+      img.timestamp = ts !== undefined && ts >= 0 ? ts : undefined;
+    }
+    for (const [path, info] of bucketBursts(items, burstWindowMs)) {
+      const img = images.find((i) => i.path === path);
+      if (img) { img.burstGroup = info.burstGroup; img.burstRank = info.burstRank; }
+    }
 
     // Fire-and-forget preview + analysis pipeline.
     void generatePreviews(
@@ -47,6 +51,7 @@ export function registerIngestHandlers(): void {
         const img = images.find((i) => i.path === result.path);
         const enriched: PreviewReadyPayload = {
           ...result,
+          timestamp:  img?.timestamp,
           burstGroup: img?.burstGroup,
           burstRank:  img?.burstRank,
         };
@@ -63,6 +68,7 @@ export function registerIngestHandlers(): void {
               eyeStatus:       scores.eyeStatus,
               aestheticsScore: scores.aestheticsScore,
               isPortrait:      scores.isPortrait,
+              qualityScore:    scores.qualityScore,
               derivedStars:    scores.derivedStars,
             };
             send(sender, IpcChannels.analysisReady, payload);
@@ -76,10 +82,8 @@ export function registerIngestHandlers(): void {
       }
     );
 
-    // Return immediately — burst info will be on the image objects already
-    // if detection finished before previews; otherwise the scorer re-reads
-    // burstRank from the image object which is updated when burstPromise settles.
-    void burstPromise;
+    // Images already carry timestamps + initial burst grouping; previews and
+    // analysis stream in via events.
     return images;
   });
 

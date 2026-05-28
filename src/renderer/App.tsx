@@ -1,21 +1,29 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useImageStore } from './store/imageStore';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useImageStore, passesEyeFilter } from './store/imageStore';
 import { ImageTile } from './components/ImageTile';
 import { DetailView } from './components/DetailView';
 import { FilterSortBar } from './components/FilterSortBar';
 import { SplitView } from './components/SplitView';
+import { BurstGroup } from './components/BurstGroup';
 import { useTheme } from './useTheme';
-import { effectiveStars, lrLabel, lrPickLabel, type PhotoImage } from '../shared/types';
+import { assignRelativeStars } from '../shared/relativeRating';
+import { bucketBursts } from '../shared/burst';
+import { lrLabel, lrPickLabel, type PhotoImage } from '../shared/types';
 import type { WriteRatingItem } from '../shared/ipc';
 
 type ViewMode = 'grid' | 'split';
 
-function sortImages(images: PhotoImage[], field: string, dir: string): PhotoImage[] {
+function sortImages(
+  images: PhotoImage[],
+  field: string,
+  dir: string,
+  starOf: (img: PhotoImage) => number | undefined
+): PhotoImage[] {
   const sign = dir === 'asc' ? 1 : -1;
   return [...images].sort((a, b) => {
     let av: number | string, bv: number | string;
     switch (field) {
-      case 'stars':      av = effectiveStars(a) ?? -1; bv = effectiveStars(b) ?? -1; break;
+      case 'stars':      av = starOf(a) ?? -1; bv = starOf(b) ?? -1; break;
       case 'sharpness':  av = a.sharpnessScore  ?? -1; bv = b.sharpnessScore  ?? -1; break;
       case 'exposure':   av = a.exposureScore   ?? -1; bv = b.exposureScore   ?? -1; break;
       case 'aesthetics': av = a.aestheticsScore ?? -1; bv = b.aestheticsScore ?? -1; break;
@@ -37,8 +45,36 @@ export function App(): React.JSX.Element {
   const setImages      = useImageStore((s) => s.setImages);
   const updateImage    = useImageStore((s) => s.updateImage);
   const clearSelection = useImageStore((s) => s.clearSelection);
+  const relativeRating = useImageStore((s) => s.relativeRating);
+  const groupBursts    = useImageStore((s) => s.groupBursts);
 
   const { theme, toggle: toggleTheme } = useTheme();
+
+  // Relative (whole-shoot) rating: rank all loaded images by qualityScore and
+  // map to a target star distribution. Recomputes as analyses stream in.
+  const relativeMap = useMemo(
+    () => (relativeRating ? assignRelativeStars(images) : null),
+    [images, relativeRating]
+  );
+  const getSuggested = useCallback(
+    (img: PhotoImage): number | undefined =>
+      (relativeMap ? relativeMap.get(img.path) : undefined) ?? img.derivedStars,
+    [relativeMap]
+  );
+  const effectiveOf = useCallback(
+    (img: PhotoImage): number | undefined => img.manualStars ?? getSuggested(img),
+    [getSuggested]
+  );
+
+  // Stable burst-group numbering (in scan order) for the grouped grid headers.
+  const burstNumbers = useMemo(() => {
+    const m = new Map<string, number>();
+    let n = 0;
+    for (const img of images) {
+      if (img.burstGroup && !m.has(img.burstGroup)) m.set(img.burstGroup, ++n);
+    }
+    return m;
+  }, [images]);
 
   const [openPath, setOpenPath] = useState<string | undefined>();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -50,6 +86,7 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     const offPreview  = window.api.onPreviewReady((p) => updateImage(p.path, {
       previewPath: p.previewPath,
+      timestamp:   p.timestamp,
       burstGroup:  p.burstGroup,
       burstRank:   p.burstRank,
     }));
@@ -62,16 +99,36 @@ export function App(): React.JSX.Element {
         eyeStatus:       p.eyeStatus,
         aestheticsScore: p.aestheticsScore,
         isPortrait:      p.isPortrait,
+        qualityScore:    p.qualityScore,
         derivedStars:    p.derivedStars,
       });
     });
     return () => { offPreview(); offAnalysis(); };
   }, [updateImage]);
 
+  // Re-group bursts live when the window slider changes (or timestamps arrive).
+  // Bucketing is pure and deterministic, so we only write back when an
+  // assignment actually changed — that breaks the images→effect→images loop.
+  useEffect(() => {
+    const windowMs = filter.burstWindowSec * 1000;
+    const assignments = bucketBursts(
+      images.map((i) => ({ path: i.path, ts: i.timestamp ?? -1 })),
+      windowMs
+    );
+    let changed = false;
+    const next = images.map((img) => {
+      const info = assignments.get(img.path);
+      if (img.burstGroup === info?.burstGroup && img.burstRank === info?.burstRank) return img;
+      changed = true;
+      return { ...img, burstGroup: info?.burstGroup, burstRank: info?.burstRank };
+    });
+    if (changed) setImages(next);
+  }, [images, filter.burstWindowSec, setImages]);
+
   const visibleImages = useMemo(() => {
     let result = images;
     if (filter.minStars > 0) {
-      result = result.filter((i) => (effectiveStars(i) ?? 0) >= filter.minStars);
+      result = result.filter((i) => (effectiveOf(i) ?? 0) >= filter.minStars);
     }
     if (filter.burstBestOnly) {
       result = result.filter((i) => !i.burstGroup || i.burstRank === 1);
@@ -79,8 +136,9 @@ export function App(): React.JSX.Element {
     if (filter.unwrittenOnly) {
       result = result.filter((i) => !i.written);
     }
-    return sortImages(result, sort.field, sort.dir);
-  }, [images, sort, filter]);
+    result = result.filter((i) => passesEyeFilter(filter.eyes, i));
+    return sortImages(result, sort.field, sort.dir, effectiveOf);
+  }, [images, sort, filter, effectiveOf]);
 
   const handleOpenFolder = async (): Promise<void> => {
     const picked = await window.api.selectFolder();
@@ -97,14 +155,14 @@ export function App(): React.JSX.Element {
   const apply = async (scope: 'selected' | 'all'): Promise<void> => {
     const targets = images.filter((img) => {
       if (scope === 'selected' && !selected.has(img.path)) return false;
-      return effectiveStars(img) !== undefined;
+      return effectiveOf(img) !== undefined;
     });
     if (targets.length === 0) { setStatus('Nothing to apply.'); return; }
 
     setWriting(true);
     setStatus(`Writing ${targets.length}…`);
     const items: WriteRatingItem[] = targets.map((img) => {
-      const stars = effectiveStars(img) as number;
+      const stars = effectiveOf(img) as number;
       const bad   = img.eyeStatus?.badExpression ?? false;
       return {
         path:  img.path,
@@ -227,7 +285,7 @@ export function App(): React.JSX.Element {
       {images.length > 0 && <FilterSortBar />}
 
       {viewMode === 'split' && images.length > 0 ? (
-        <SplitView images={images} filteredImages={visibleImages} />
+        <SplitView images={images} filteredImages={visibleImages} getSuggested={getSuggested} />
       ) : (
         <main className="flex-1 overflow-y-auto p-6">
           {visibleImages.length === 0 ? (
@@ -236,20 +294,49 @@ export function App(): React.JSX.Element {
             </div>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
-              {visibleImages.map((img) => (
-                <ImageTile
-                  key={img.path}
-                  image={img}
-                  selected={selected.has(img.path)}
-                  onOpen={() => setOpenPath(img.path)}
-                />
-              ))}
+              {(() => {
+                const tile = (img: PhotoImage): React.JSX.Element => (
+                  <ImageTile
+                    key={img.path}
+                    image={img}
+                    suggested={getSuggested(img)}
+                    selected={selected.has(img.path)}
+                    onOpen={() => setOpenPath(img.path)}
+                  />
+                );
+                if (!groupBursts) return visibleImages.map(tile);
+
+                const seen = new Set<string>();
+                const nodes: React.ReactNode[] = [];
+                for (const img of visibleImages) {
+                  if (img.burstGroup) {
+                    if (seen.has(img.burstGroup)) continue;
+                    seen.add(img.burstGroup);
+                    const members = visibleImages.filter((i) => i.burstGroup === img.burstGroup);
+                    if (members.length >= 2) {
+                      nodes.push(
+                        <BurstGroup
+                          key={`burst-${img.burstGroup}`}
+                          groupNumber={burstNumbers.get(img.burstGroup) ?? 0}
+                          members={members}
+                          selectedPaths={selected}
+                          getSuggested={getSuggested}
+                          onOpen={setOpenPath}
+                        />
+                      );
+                      continue;
+                    }
+                  }
+                  nodes.push(tile(img));
+                }
+                return nodes;
+              })()}
             </div>
           )}
         </main>
       )}
 
-      {open && <DetailView image={open} onClose={() => setOpenPath(undefined)} />}
+      {open && <DetailView image={open} suggested={getSuggested(open)} onClose={() => setOpenPath(undefined)} />}
     </div>
   );
 }

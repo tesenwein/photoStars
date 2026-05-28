@@ -15,6 +15,7 @@ export const IpcChannels = {
 export interface PreviewReadyPayload {
   path: string;
   previewPath?: string;
+  timestamp?: number;
   burstGroup?: string;
   burstRank?: number;
   error?: string;
@@ -29,6 +30,7 @@ export interface AnalysisReadyPayload {
   eyeStatus?: import('./types').EyeStatus;
   aestheticsScore?: number;
   isPortrait?: boolean;
+  qualityScore?: number;
   derivedStars?: number;
   error?: string;
 }

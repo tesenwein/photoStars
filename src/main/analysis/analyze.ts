@@ -15,6 +15,8 @@ export interface AnalysisResult {
   aestheticsScore?: number;
   /** True when faces or significant skin tones detected — uses portrait weights. */
   isPortrait?: boolean;
+  /** Continuous 0–1 quality (pre-rounding) used for whole-shoot relative ranking. */
+  qualityScore: number;
   derivedStars: number;
 }
 
@@ -22,6 +24,23 @@ function normalizeSharpness(variance: number): number {
   const { floor, ceil } = config.sharpness;
   const clamped = Math.max(floor, Math.min(ceil, variance));
   return (clamped - floor) / (ceil - floor);
+}
+
+/** Weighted 0–1 quality from the per-feature scores; basis for both the
+ * absolute star derivation and the relative whole-shoot ranking. */
+function computeQuality(
+  sharpNorm: number,
+  exposureScore: number,
+  aestheticsScore: number | undefined,
+  isPortrait: boolean
+): number {
+  const weights = isPortrait ? config.portraitWeights : config.weights;
+  const aestheticNorm = aestheticsScore !== undefined ? (aestheticsScore - 1) / 9 : 0.5;
+  return (
+    weights.sharpness * sharpNorm +
+    weights.exposure * (exposureScore / 100) +
+    weights.aesthetics * aestheticNorm
+  );
 }
 
 function deriveStars(
@@ -34,18 +53,11 @@ function deriveStars(
 ): number {
   const { hardCaps } = config;
 
-  // Portrait shots use reduced exposure weight — moody/dark lighting is intentional.
-  const weights = isPortrait ? config.portraitWeights : config.weights;
-
   // Hard cap: severely blurry images are never above blurryMaxStars.
   const rawVariance = sharpNorm * (config.sharpness.ceil - config.sharpness.floor) + config.sharpness.floor;
   const blurryCap = rawVariance < hardCaps.blurryVariance ? hardCaps.blurryMaxStars : 5;
 
-  const aestheticNorm = aestheticsScore !== undefined ? (aestheticsScore - 1) / 9 : 0.5;
-  const quality =
-    weights.sharpness * sharpNorm +
-    weights.exposure  * (exposureScore / 100) +
-    weights.aesthetics * aestheticNorm;
+  const quality = computeQuality(sharpNorm, exposureScore, aestheticsScore, isPortrait);
 
   // Power curve: compresses low-quality scores so most images land at 0–2★.
   const curved = Math.pow(Math.max(0, quality), config.qualityPower);
@@ -75,9 +87,11 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
   const cached = await readAnalysisCache(previewPath, mtime);
   if (cached) {
     const sharpNorm = normalizeSharpness(cached.sharpnessScore);
+    const portrait = cached.isPortrait ?? false;
+    cached.qualityScore = computeQuality(sharpNorm, cached.exposureScore, cached.aestheticsScore, portrait);
     cached.derivedStars = deriveStars(
       sharpNorm, cached.exposureScore, cached.aestheticsScore,
-      cached.eyeStatus, burstRank, cached.isPortrait ?? false
+      cached.eyeStatus, burstRank, portrait
     );
     return cached;
   }
@@ -108,6 +122,7 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
     eyeStatus,
     aestheticsScore,
     isPortrait:   portrait,
+    qualityScore: computeQuality(sharpNorm, exposure.score, aestheticsScore, portrait),
     derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank, portrait),
   };
 

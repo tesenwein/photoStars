@@ -1,13 +1,8 @@
-import * as crypto from 'crypto';
 import { exiftoolInstance } from '../exiftool/exiftool';
 import type { PhotoImage } from '../../shared/types';
+import { bucketBursts, type BurstItem, type BurstInfo } from '../../shared/burst';
 
 const DEFAULT_BURST_WINDOW_MS = 3_000;
-
-interface Timestamped {
-  path: string;
-  ts: number; // Unix ms, or -1 if unknown
-}
 
 async function readTimestamp(filePath: string): Promise<number> {
   try {
@@ -29,59 +24,39 @@ async function readTimestamp(filePath: string): Promise<number> {
   }
 }
 
-function groupKey(ts: number, windowMs: number): string {
-  const bucket = Math.floor(ts / windowMs) * windowMs;
-  return crypto.createHash('sha1').update(String(bucket)).digest('hex').slice(0, 8);
-}
-
 /**
- * Reads EXIF timestamps for all images concurrently (bounded concurrency),
- * groups shots within BURST_WINDOW_MS of each other, and annotates each
- * PhotoImage with burstGroup / burstRank.
- *
- * Burst rank is assigned by file name order within the group (serves as a
- * stable proxy until scores are available; the UI re-ranks by score later).
+ * Reads EXIF capture timestamps for all images with bounded concurrency.
+ * Returned ts is Unix ms, or -1 when unknown.
  */
-export async function detectBursts(
+export async function readTimestamps(
   images: PhotoImage[],
-  burstWindowMs = DEFAULT_BURST_WINDOW_MS,
   concurrency = 8
-): Promise<Map<string, { burstGroup: string; burstRank: number }>> {
-  const result = new Map<string, { burstGroup: string; burstRank: number }>();
-  if (images.length === 0) return result;
-
-  // Read timestamps with bounded concurrency
-  const timestamped: Timestamped[] = new Array(images.length);
+): Promise<BurstItem[]> {
+  const items: BurstItem[] = new Array(images.length);
   let cursor = 0;
 
   async function worker(): Promise<void> {
     while (cursor < images.length) {
       const idx = cursor++;
-      timestamped[idx] = {
-        path: images[idx].path,
-        ts: await readTimestamp(images[idx].path),
-      };
+      items[idx] = { path: images[idx].path, ts: await readTimestamp(images[idx].path) };
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(concurrency, images.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(concurrency, images.length || 1) }, worker));
+  return items;
+}
 
-  // Group by timestamp bucket
-  const groups = new Map<string, string[]>();
-  for (const t of timestamped) {
-    if (t.ts === -1) continue;
-    const key = groupKey(t.ts, burstWindowMs);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(t.path);
-  }
-
-  // Only annotate groups with ≥2 images
-  for (const [key, paths] of groups) {
-    if (paths.length < 2) continue;
-    paths.forEach((p, i) => {
-      result.set(p, { burstGroup: key, burstRank: i + 1 });
-    });
-  }
-
-  return result;
+/**
+ * Reads timestamps then groups shots within burstWindowMs into bursts.
+ * Bucketing itself is delegated to the pure shared helper so the renderer can
+ * re-bucket the same way when the burst-window slider changes.
+ */
+export async function detectBursts(
+  images: PhotoImage[],
+  burstWindowMs = DEFAULT_BURST_WINDOW_MS,
+  concurrency = 8
+): Promise<Map<string, BurstInfo>> {
+  if (images.length === 0) return new Map();
+  const items = await readTimestamps(images, concurrency);
+  return bucketBursts(items, burstWindowMs);
 }
