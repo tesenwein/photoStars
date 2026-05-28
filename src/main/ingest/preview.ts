@@ -29,54 +29,39 @@ async function ensureCacheDir(): Promise<string> {
  * it is stored in raw sensor (landscape) orientation — so we must read the
  * Orientation from the DNG itself and apply an explicit rotation.
  */
-// EXIF Orientation → degrees clockwise to pass to sharp().rotate(deg)
-// Verified against Leica SL2 DNGs (Orientation=8 = camera rotated CW = needs 90° CW fix).
-const ORIENTATION_TO_DEG: Record<number, number> = {
-  1: 0,   // normal
-  2: 0,   // flip H (ignored)
-  3: 180, // 180°
-  4: 180, // flip V (ignored)
-  5: 90,
-  6: 90,  // camera rotated CCW (portrait right) → rotate 90° CW
-  7: 270,
-  8: 90,  // camera rotated CW  (portrait left)  → rotate 90° CW  ← was 270, wrong
-};
-
-async function readOrientationDeg(filePath: string): Promise<number> {
-  try {
-    const tags = await exiftoolInstance.read(filePath, ['Orientation']);
-    const o = typeof tags.Orientation === 'number' ? tags.Orientation : 1;
-    return ORIENTATION_TO_DEG[o] ?? 0;
-  } catch {
-    return 0;
-  }
-}
-
 async function rawToJpegBuffer(filePath: string): Promise<Buffer> {
-  // Read orientation from the original DNG (the embedded JPEG has no tag).
-  const rotateDeg = await readOrientationDeg(filePath);
-
-  // Try extracting the high-quality embedded JPEG first (Leica SL2: ~1 MB).
   const tmp = path.join(os.tmpdir(), `ps_raw_${cacheKey(filePath)}.jpg`);
   try {
+    // 1. Extract the embedded JPEG — the highest-quality preview the camera wrote.
     await exiftoolInstance.extractJpgFromRaw(filePath, tmp);
+
+    // 2. The embedded JPEG usually has no Orientation tag (stored in sensor/landscape
+    //    order). Copy the Orientation from the source RAW into the temp JPEG so that
+    //    sharp().rotate() (no argument) can auto-correct it — works for any camera.
+    const tags = await exiftoolInstance.read(filePath, ['Orientation']);
+    const orientation = typeof tags.Orientation === 'number' ? tags.Orientation : 1;
+    if (orientation !== 1) {
+      await exiftoolInstance.write(tmp, { Orientation: orientation }, ['-overwrite_original']);
+    }
+
+    // 3. sharp().rotate() reads the EXIF Orientation we just wrote and corrects it.
     const buf = await fs.readFile(tmp);
     if (buf.length > 10_000) {
       return sharp(buf)
-        .rotate(rotateDeg)   // explicit degrees — no EXIF auto-detect
+        .rotate()   // auto-orient from EXIF — universal for all cameras
         .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
     }
   } catch {
-    // embedded JPEG not available
+    // embedded JPEG not available — fall through to direct libraw decode
   } finally {
     fs.unlink(tmp).catch(() => undefined);
   }
 
-  // Fall back: sharp/libraw direct decode with explicit rotation.
+  // Fall back: sharp/libraw direct decode — also handles orientation via .rotate().
   return sharp(filePath)
-    .rotate(rotateDeg)
+    .rotate()
     .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 80 })
     .toBuffer();
