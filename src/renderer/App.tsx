@@ -71,8 +71,11 @@ export function App(): React.JSX.Element {
     if (!picked) return;
     setFolder(picked);
     clearSelection();
-    setStatus('');
-    setImages(await window.api.ingestFolder(picked));
+    setImages([]);
+    setStatus('Scanning…');
+    const imgs = await window.api.ingestFolder(picked);
+    setImages(imgs);
+    setStatus(imgs.length === 0 ? 'No supported images found.' : '');
   };
 
   const apply = async (scope: 'selected' | 'all'): Promise<void> => {

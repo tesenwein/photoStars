@@ -1,2 +1,2 @@
-export { runExiftool } from './exiftool';
+export { exiftoolInstance } from './exiftool';
 export { writeRating } from './writeRating';

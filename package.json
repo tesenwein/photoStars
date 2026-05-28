@@ -56,6 +56,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "exiftool-vendored": "^35.20.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "sharp": "^0.34.5",

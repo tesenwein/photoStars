@@ -1,13 +1,13 @@
 import { existsSync, copyFileSync } from 'fs';
 import { extname, dirname, basename, join } from 'path';
-import { ImageFileType } from '../../shared/types';
-import { runExiftool } from './exiftool';
+import type { ImageFileType } from '../../shared/types';
+import { exiftoolInstance } from './exiftool';
 
 export interface WriteRatingOptions {
   path: string;
   type: ImageFileType;
   stars: number;
-  /** When true, copy JPEG/HEIC originals and RAW sidecars to <name>.bak before writing. */
+  /** Copy original/sidecar to <name>.bak before overwriting. */
   backup?: boolean;
 }
 
@@ -22,8 +22,6 @@ export async function writeRating(opts: WriteRatingOptions): Promise<void> {
     throw new Error(`Invalid rating: stars must be an integer between 0 and 5, got ${stars}`);
   }
 
-  const ratingTag = `-XMP:Rating=${stars}`;
-
   if (type === 'raw') {
     const dir = dirname(path);
     const base = basename(path, extname(path));
@@ -31,12 +29,14 @@ export async function writeRating(opts: WriteRatingOptions): Promise<void> {
 
     if (existsSync(sidecarPath)) {
       if (backup) copyFileSync(sidecarPath, backupPath(sidecarPath));
-      await runExiftool([ratingTag, sidecarPath]);
+      // Write to existing sidecar in-place.
+      await exiftoolInstance.write(sidecarPath, { Rating: stars }, ['-overwrite_original']);
     } else {
-      await runExiftool(['-o', sidecarPath, ratingTag, path]);
+      // Create sidecar: exiftool writes to a new file via -o.
+      await exiftoolInstance.write(path, { Rating: stars }, ['-o', sidecarPath]);
     }
   } else {
     if (backup && existsSync(path)) copyFileSync(path, backupPath(path));
-    await runExiftool(['-overwrite_original', ratingTag, path]);
+    await exiftoolInstance.write(path, { Rating: stars }, ['-overwrite_original']);
   }
 }

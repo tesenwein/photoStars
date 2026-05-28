@@ -4,6 +4,7 @@ import { pathToFileURL } from 'url';
 import { IpcChannels } from '../shared/ipc';
 import { registerIngestHandlers } from './ingest/ingestHandler';
 import { sidecar } from './sidecar/sidecarManager';
+import { exiftoolInstance } from './exiftool/exiftool';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -69,4 +70,5 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   sidecar.shutdown();
+  void exiftoolInstance.end();
 });

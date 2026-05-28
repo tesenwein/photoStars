@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import sharp from 'sharp';
 import type { ImageFileType } from '../../shared/types';
-import { runExiftool } from '../exiftool/exiftool';
+import { exiftoolInstance } from '../exiftool/exiftool';
 
 const THUMB_MAX = 512;
 
@@ -23,21 +23,48 @@ async function ensureCacheDir(): Promise<string> {
 }
 
 /**
- * RAW previews carry rotation only as metadata, so the embedded JPEG must be
- * re-oriented explicitly or it renders sideways.
+ * Get a JPEG buffer for any image file.
+ * - JPEG/HEIC: sharp reads directly.
+ * - RAW/DNG: try sharp (libvips + libraw), then fall back to exiftool embedded preview.
  */
-async function extractRawPreview(filePath: string): Promise<Buffer> {
-  const { stdout } = await runExiftool([
-    '-b',
-    '-PreviewImage',
-    '-JpgFromRaw',
-    filePath,
-  ]);
-  const buf = Buffer.from(stdout, 'binary');
-  if (buf.length === 0) {
-    throw new Error(`No embedded preview found in ${filePath}`);
+async function toJpegBuffer(filePath: string, type: ImageFileType): Promise<Buffer> {
+  if (type !== 'raw') {
+    return sharp(filePath)
+      .rotate()
+      .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
   }
-  return buf;
+
+  // RAW: try sharp/libraw first (handles DNG, many other RAW formats).
+  try {
+    const buf = await sharp(filePath)
+      .rotate()
+      .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    if (buf.length > 1000) return buf;
+  } catch {
+    // fall through to exiftool
+  }
+
+  // Fall back: extract embedded JPEG preview via exiftool-vendored.
+  const tmpFile = path.join(await ensureCacheDir(), `__raw_${cacheKey(filePath)}.jpg`);
+  try {
+    // extractJpgFromRaw writes the embedded JPEG to tmpFile.
+    await exiftoolInstance.extractJpgFromRaw(filePath, tmpFile);
+    const raw = await fs.readFile(tmpFile);
+    if (raw.length > 1000) {
+      return sharp(raw).rotate()
+        .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+    }
+  } finally {
+    fs.unlink(tmpFile).catch(() => undefined);
+  }
+
+  throw new Error(`Cannot generate preview for ${path.basename(filePath)}`);
 }
 
 export async function generatePreview(
@@ -49,19 +76,13 @@ export async function generatePreview(
 
   try {
     await fs.access(outPath);
-    return outPath;
+    return outPath; // already cached
   } catch {
     // not cached yet
   }
 
-  const source: string | Buffer = type === 'raw' ? await extractRawPreview(filePath) : filePath;
-
-  await sharp(source)
-    .rotate()
-    .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 80 })
-    .toFile(outPath);
-
+  const buf = await toJpegBuffer(filePath, type);
+  await fs.writeFile(outPath, buf);
   return outPath;
 }
 
@@ -71,10 +92,6 @@ export interface PreviewResult {
   error?: string;
 }
 
-/**
- * Generate previews in bounded-concurrency batches so a large folder does not
- * spawn thousands of sharp/exiftool processes at once and freeze the app.
- */
 export async function generatePreviews(
   items: { path: string; type: ImageFileType }[],
   onResult: (result: PreviewResult) => void,
@@ -94,6 +111,6 @@ export async function generatePreviews(
     }
   }
 
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker);
+  const workers = Array.from({ length: Math.min(concurrency, items.length || 1) }, worker);
   await Promise.all(workers);
 }
