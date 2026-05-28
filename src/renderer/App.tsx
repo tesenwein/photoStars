@@ -1,39 +1,70 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useImageStore } from './store/imageStore';
 import { ImageTile } from './components/ImageTile';
 import { DetailView } from './components/DetailView';
-import { effectiveStars } from '../shared/types';
+import { FilterSortBar } from './components/FilterSortBar';
+import { effectiveStars, type PhotoImage } from '../shared/types';
 import type { WriteRatingItem } from '../shared/ipc';
 
+function sortImages(images: PhotoImage[], field: string, dir: string): PhotoImage[] {
+  const sign = dir === 'asc' ? 1 : -1;
+  return [...images].sort((a, b) => {
+    let av: number | string, bv: number | string;
+    switch (field) {
+      case 'stars':      av = effectiveStars(a) ?? -1; bv = effectiveStars(b) ?? -1; break;
+      case 'sharpness':  av = a.sharpnessScore  ?? -1; bv = b.sharpnessScore  ?? -1; break;
+      case 'exposure':   av = a.exposureScore   ?? -1; bv = b.exposureScore   ?? -1; break;
+      case 'aesthetics': av = a.aestheticsScore ?? -1; bv = b.aestheticsScore ?? -1; break;
+      default:           av = a.name; bv = b.name;
+    }
+    if (av < bv) return -sign;
+    if (av > bv) return  sign;
+    return 0;
+  });
+}
+
 export function App(): React.JSX.Element {
-  const folder = useImageStore((s) => s.folder);
-  const images = useImageStore((s) => s.images);
-  const selected = useImageStore((s) => s.selected);
-  const setFolder = useImageStore((s) => s.setFolder);
-  const setImages = useImageStore((s) => s.setImages);
-  const updateImage = useImageStore((s) => s.updateImage);
+  const folder        = useImageStore((s) => s.folder);
+  const images        = useImageStore((s) => s.images);
+  const selected      = useImageStore((s) => s.selected);
+  const sort          = useImageStore((s) => s.sort);
+  const filter        = useImageStore((s) => s.filter);
+  const setFolder     = useImageStore((s) => s.setFolder);
+  const setImages     = useImageStore((s) => s.setImages);
+  const updateImage   = useImageStore((s) => s.updateImage);
   const clearSelection = useImageStore((s) => s.clearSelection);
 
   const [openPath, setOpenPath] = useState<string | undefined>();
-  const [writing, setWriting] = useState(false);
-  const [status, setStatus] = useState<string>('');
+  const [writing,  setWriting]  = useState(false);
+  const [backup,   setBackup]   = useState(false);
+  const [status,   setStatus]   = useState<string>('');
 
   useEffect(() => {
-    const offPreview = window.api.onPreviewReady((p) => updateImage(p.path, { previewPath: p.previewPath }));
+    const offPreview  = window.api.onPreviewReady((p) => updateImage(p.path, { previewPath: p.previewPath }));
     const offAnalysis = window.api.onAnalysisReady((p) => {
       if (p.error) return;
       updateImage(p.path, {
-        sharpnessScore: p.sharpnessScore,
-        exposureScore: p.exposureScore,
-        exposureHint: p.exposureHint,
-        derivedStars: p.derivedStars,
+        sharpnessScore:  p.sharpnessScore,
+        exposureScore:   p.exposureScore,
+        exposureHint:    p.exposureHint,
+        eyeStatus:       p.eyeStatus,
+        aestheticsScore: p.aestheticsScore,
+        derivedStars:    p.derivedStars,
       });
     });
-    return () => {
-      offPreview();
-      offAnalysis();
-    };
+    return () => { offPreview(); offAnalysis(); };
   }, [updateImage]);
+
+  const visibleImages = useMemo(() => {
+    let result = images;
+    if (filter.minStars > 0) {
+      result = result.filter((i) => (effectiveStars(i) ?? 0) >= filter.minStars);
+    }
+    if (filter.unwrittenOnly) {
+      result = result.filter((i) => !i.written);
+    }
+    return sortImages(result, sort.field, sort.dir);
+  }, [images, sort, filter]);
 
   const handleOpenFolder = async (): Promise<void> => {
     const picked = await window.api.selectFolder();
@@ -49,10 +80,7 @@ export function App(): React.JSX.Element {
       if (scope === 'selected' && !selected.has(img.path)) return false;
       return effectiveStars(img) !== undefined;
     });
-    if (targets.length === 0) {
-      setStatus('Nothing to apply.');
-      return;
-    }
+    if (targets.length === 0) { setStatus('Nothing to apply.'); return; }
 
     setWriting(true);
     setStatus(`Writing ${targets.length}…`);
@@ -60,22 +88,20 @@ export function App(): React.JSX.Element {
       path: img.path,
       type: img.type,
       stars: effectiveStars(img) as number,
+      backup,
     }));
 
     const results = await window.api.writeRatings(items);
     let ok = 0;
     for (const r of results) {
-      if (r.ok) {
-        ok++;
-        updateImage(r.path, { written: true });
-      }
+      if (r.ok) { ok++; updateImage(r.path, { written: true }); }
     }
     const failed = results.length - ok;
     setStatus(`Wrote ${ok}${failed ? `, ${failed} failed` : ''}.`);
     setWriting(false);
   };
 
-  const open = images.find((i) => i.path === openPath);
+  const open    = images.find((i) => i.path === openPath);
   const pending = images.filter((i) => !i.previewPath).length;
   const selectedCount = selected.size;
 
@@ -111,6 +137,15 @@ export function App(): React.JSX.Element {
               </button>
             </>
           )}
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-400">
+            <input
+              type="checkbox"
+              checked={backup}
+              onChange={(e) => setBackup(e.target.checked)}
+              className="accent-amber-400"
+            />
+            Backup
+          </label>
           <button
             onClick={handleOpenFolder}
             disabled={writing}
@@ -121,14 +156,16 @@ export function App(): React.JSX.Element {
         </div>
       </header>
 
+      {images.length > 0 && <FilterSortBar />}
+
       <main className="flex-1 overflow-y-auto p-6">
-        {images.length === 0 ? (
+        {visibleImages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-slate-400">
-            <p>Open a folder to load photos.</p>
+            <p>{images.length === 0 ? 'Open a folder to load photos.' : 'No images match the current filters.'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
-            {images.map((img) => (
+            {visibleImages.map((img) => (
               <ImageTile
                 key={img.path}
                 image={img}

@@ -17,12 +17,14 @@ export interface PreviewReadyPayload {
   error?: string;
 }
 
-/** Payload pushed once the hard-filter analysis for an image completes. */
+/** Payload pushed once the full analysis for an image completes. */
 export interface AnalysisReadyPayload {
   path: string;
   sharpnessScore?: number;
   exposureScore?: number;
   exposureHint?: ExposureHint;
+  eyeStatus?: import('./types').EyeStatus;
+  aestheticsScore?: number;
   derivedStars?: number;
   error?: string;
 }
@@ -31,6 +33,8 @@ export interface WriteRatingItem {
   path: string;
   type: ImageFileType;
   stars: number;
+  /** Copy original/sidecar to <name>.bak before overwriting. */
+  backup?: boolean;
 }
 
 export interface WriteRatingResult {

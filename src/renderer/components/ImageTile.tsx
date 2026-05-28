@@ -46,6 +46,11 @@ export function ImageTile({
           written
         </span>
       )}
+      {image.eyeStatus && image.eyeStatus.facesDetected > 0 && !image.eyeStatus.allEyesOpen && (
+        <span className="absolute left-2 bottom-14 z-10 rounded bg-rose-700/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          eyes closed
+        </span>
+      )}
 
       <div className="flex aspect-square items-center justify-center">
         {image.previewPath ? (

@@ -31,7 +31,15 @@ export function registerIngestHandlers(): void {
 
         void analyzeImage(result.previewPath)
           .then((scores) => {
-            const payload: AnalysisReadyPayload = { path: result.path, ...scores };
+            const payload: AnalysisReadyPayload = {
+              path: result.path,
+              sharpnessScore: scores.sharpnessScore,
+              exposureScore: scores.exposureScore,
+              exposureHint: scores.exposureHint,
+              eyeStatus: scores.eyeStatus,
+              aestheticsScore: scores.aestheticsScore,
+              derivedStars: scores.derivedStars,
+            };
             send(sender, IpcChannels.analysisReady, payload);
           })
           .catch((err: Error) => {
@@ -52,7 +60,7 @@ export function registerIngestHandlers(): void {
       const results: WriteRatingResult[] = [];
       for (const item of items) {
         try {
-          await writeRating({ path: item.path, type: item.type, stars: item.stars });
+          await writeRating({ path: item.path, type: item.type, stars: item.stars, backup: item.backup });
           results.push({ path: item.path, ok: true });
         } catch (err) {
           results.push({ path: item.path, ok: false, error: (err as Error).message });

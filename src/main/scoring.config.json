@@ -1,0 +1,16 @@
+{
+  "weights": {
+    "sharpness": 0.30,
+    "exposure": 0.25,
+    "aesthetics": 0.45
+  },
+  "hardCaps": {
+    "blurryVariance": 50,
+    "blurryMaxStars": 2,
+    "closedEyesPenalty": 1
+  },
+  "sharpness": {
+    "floor": 50,
+    "ceil": 600
+  }
+}

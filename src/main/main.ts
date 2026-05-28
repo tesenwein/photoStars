@@ -3,6 +3,7 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { IpcChannels } from '../shared/ipc';
 import { registerIngestHandlers } from './ingest/ingestHandler';
+import { sidecar } from './sidecar/sidecarManager';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -53,6 +54,7 @@ function registerIpcHandlers(): void {
 app.whenReady().then(() => {
   registerMediaProtocol();
   registerIpcHandlers();
+  sidecar.start();
   createWindow();
 
   app.on('activate', () => {
@@ -62,4 +64,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+  sidecar.shutdown();
 });

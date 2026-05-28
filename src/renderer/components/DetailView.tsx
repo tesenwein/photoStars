@@ -68,6 +68,22 @@ export function DetailView({ image, onClose }: { image: PhotoImage; onClose: () 
                   : '—'
               }
             />
+            <Metric
+              label="Aesthetics"
+              value={image.aestheticsScore !== undefined ? `${image.aestheticsScore.toFixed(1)} / 10` : '—'}
+            />
+            <Metric
+              label="Eyes"
+              value={
+                image.eyeStatus === undefined
+                  ? '—'
+                  : image.eyeStatus.facesDetected === 0
+                  ? 'no faces'
+                  : image.eyeStatus.allEyesOpen
+                  ? `open (${image.eyeStatus.facesDetected})`
+                  : `closed (${image.eyeStatus.facesDetected})`
+              }
+            />
             <Metric label="Suggested" value={image.derivedStars !== undefined ? `${image.derivedStars}★` : '—'} />
             <Metric label="Written" value={image.written ? 'yes' : 'no'} />
           </div>

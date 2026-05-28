@@ -1,10 +1,20 @@
 import { create } from 'zustand';
 import type { PhotoImage } from '../../shared/types';
 
+export type SortField = 'name' | 'stars' | 'sharpness' | 'exposure' | 'aesthetics';
+export type SortDir = 'asc' | 'desc';
+
+export interface FilterState {
+  minStars: number;
+  unwrittenOnly: boolean;
+}
+
 interface ImageStore {
   folder?: string;
   images: PhotoImage[];
   selected: Set<string>;
+  sort: { field: SortField; dir: SortDir };
+  filter: FilterState;
 
   setFolder: (folder: string) => void;
   setImages: (images: PhotoImage[]) => void;
@@ -14,11 +24,15 @@ interface ImageStore {
   clearSelection: () => void;
   /** Set a manual star override (null clears it back to the derived value). */
   setManualStars: (path: string, stars: number | null) => void;
+  setSort: (field: SortField, dir: SortDir) => void;
+  setFilter: (patch: Partial<FilterState>) => void;
 }
 
 export const useImageStore = create<ImageStore>((set) => ({
   images: [],
   selected: new Set<string>(),
+  sort: { field: 'name', dir: 'asc' },
+  filter: { minStars: 0, unwrittenOnly: false },
 
   setFolder: (folder) => set({ folder }),
   setImages: (images) => set({ images }),
@@ -48,4 +62,6 @@ export const useImageStore = create<ImageStore>((set) => ({
         i.path === path ? { ...i, manualStars: stars ?? undefined, written: false } : i
       ),
     })),
+  setSort: (field, dir) => set({ sort: { field, dir } }),
+  setFilter: (patch) => set((state) => ({ filter: { ...state.filter, ...patch } })),
 }));
