@@ -69,21 +69,39 @@ export class SidecarManager {
 
   private starting = false;
 
+  /** Resolves once the worker pool is spawned; rejects if setup fails. */
+  private ready: Promise<void> | null = null;
+  private resolveReady: (() => void) | null = null;
+  private rejectReady: ((err: Error) => void) | null = null;
+
+  /**
+   * Await sidecar readiness. Resolves when the worker pool is live, rejects if
+   * provisioning failed or the sidecar was never started. Analysis callers
+   * await this so requests are not raced against (and lost to) provisioning.
+   */
+  whenReady(): Promise<void> {
+    return this.ready ?? Promise.reject(new Error('sidecar not started'));
+  }
+
   /**
    * Provision the sidecar venv on first run (downloads uv + Python + deps),
    * then spawn the worker pool. Runs asynchronously: the UI loads immediately
-   * and analysis requests made before the pool is ready reject gracefully
-   * (callers in analyze.ts already treat that as "sidecar unavailable").
+   * and analysis requests await {@link whenReady} so none are dropped.
    */
   start(): void {
     if (this.workers.length > 0 || this.starting) return;
     this.starting = true;
+    this.ready = new Promise<void>((resolve, reject) => {
+      this.resolveReady = resolve;
+      this.rejectReady = reject;
+    });
 
     const dir = sidecarDir();
     const scriptPath = path.join(dir, 'analyzer.py');
     if (!fs.existsSync(scriptPath)) {
       console.warn(`[sidecar] analyzer.py not found at ${scriptPath}; face/eye and aesthetics disabled`);
       this.starting = false;
+      this.rejectReady?.(new Error('analyzer.py not found'));
       return;
     }
 
@@ -95,8 +113,10 @@ export class SidecarManager {
           const w = this.spawnWorker(bin, scriptPath);
           if (w) this.workers.push(w);
         }
+        this.resolveReady?.();
       })
       .catch((err: unknown) => {
+        this.rejectReady?.(err instanceof Error ? err : new Error(String(err)));
         console.error('[sidecar] setup failed; face/eye and aesthetics disabled:',
           err instanceof Error ? err.message : String(err));
       })
@@ -148,7 +168,9 @@ export class SidecarManager {
   }
 
   /** Dispatch to the live worker with the fewest in-flight requests. */
-  private send(type: RequestType, imagePath: string): Promise<Record<string, unknown>> {
+  private async send(type: RequestType, imagePath: string): Promise<Record<string, unknown>> {
+    // Wait for the pool to finish provisioning/spawning instead of racing it.
+    await this.whenReady();
     const live = this.workers.filter((w) => !w.proc.killed);
     if (live.length === 0) return Promise.reject(new Error('sidecar not running'));
     const worker = live.reduce((a, b) => (b.pending.size < a.pending.size ? b : a));

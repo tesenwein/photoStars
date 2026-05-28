@@ -268,7 +268,12 @@ def handle(req: dict) -> dict:
             if img is None:
                 raise ValueError(f"Cannot read image: {img_path}")
             result = _face_eye_from_img(img)
-            result["aestheticsScore"] = _aesthetics_from_img(img)
+            # Aesthetics is best-effort: a NIMA failure must not discard the
+            # face/eye result computed above.
+            try:
+                result["aestheticsScore"] = _aesthetics_from_img(img)
+            except Exception as exc:
+                result["aestheticsError"] = str(exc)
         elif req_type == "face_eye":
             result = analyze_face_eye(img_path)
         elif req_type == "aesthetics":

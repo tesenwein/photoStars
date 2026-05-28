@@ -143,10 +143,12 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
 
   let eyeStatus: EyeStatus | undefined;
   let aestheticsScore: number | undefined;
+  let sidecarOk = false;
   try {
     const combined = await sidecar.analyze(previewPath);
     eyeStatus = combined.eyeStatus;
     aestheticsScore = combined.aestheticsScore;
+    sidecarOk = true;
   } catch { /* sidecar unavailable */ }
 
   // Detect portrait subject via face detection or skin-tone fraction.
@@ -179,6 +181,9 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
     derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank, portrait, faceSharpNorm, bokehRatio),
   };
 
-  void writeAnalysisCache(previewPath, mtime, result);
+  // Only cache complete analyses. If the sidecar was unavailable (eyes +
+  // aesthetics missing), skip caching so the image is retried once it's up
+  // rather than permanently poisoned with a partial result.
+  if (sidecarOk) void writeAnalysisCache(previewPath, mtime, result);
   return result;
 }

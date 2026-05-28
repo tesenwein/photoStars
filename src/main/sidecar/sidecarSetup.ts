@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as crypto from 'crypto';
 
 /**
  * First-run provisioning for the Python sidecar.
@@ -29,6 +30,32 @@ export function venvPython(): string {
   return process.platform === 'win32'
     ? path.join(venvDir(), 'Scripts', 'python.exe')
     : path.join(venvDir(), 'bin', 'python');
+}
+
+/**
+ * Marker written only after deps install succeeds. Keyed to the requirements
+ * content so a changed requirements file forces a reinstall. Without this, a
+ * venv whose `uv venv` succeeded but whose `pip install` failed would be
+ * treated as ready forever (the interpreter exists), permanently skipping the
+ * install and crashing the sidecar on `import cv2`.
+ */
+function depsMarkerPath(): string {
+  return path.join(venvDir(), '.deps-ready');
+}
+
+function requirementsHash(requirementsPath: string): string {
+  const body = fs.readFileSync(requirementsPath, 'utf8');
+  return crypto.createHash('sha256').update(body).digest('hex');
+}
+
+function depsAreReady(requirementsPath: string): boolean {
+  const marker = depsMarkerPath();
+  if (!fs.existsSync(venvPython()) || !fs.existsSync(marker)) return false;
+  try {
+    return fs.readFileSync(marker, 'utf8').trim() === requirementsHash(requirementsPath);
+  } catch {
+    return false;
+  }
 }
 
 function run(cmd: string, args: string[]): Promise<void> {
@@ -79,12 +106,18 @@ export function ensureSidecarReady(requirementsPath: string): Promise<string> {
 
   readyPromise = (async () => {
     const py = venvPython();
-    if (fs.existsSync(py)) return py;
+    // Only short-circuit when deps are verified installed — not merely when the
+    // interpreter exists. A half-provisioned venv (venv created, install failed)
+    // must re-run the install rather than be trusted forever.
+    if (depsAreReady(requirementsPath)) return py;
 
     const uv = await ensureUv();
     console.log('[sidecar-setup] creating venv + installing deps (first run, may take a few minutes)');
-    await run(uv, ['venv', '--python', PYTHON_VERSION, venvDir()]);
+    if (!fs.existsSync(py)) {
+      await run(uv, ['venv', '--python', PYTHON_VERSION, venvDir()]);
+    }
     await run(uv, ['pip', 'install', '--python', py, '-r', requirementsPath]);
+    fs.writeFileSync(depsMarkerPath(), requirementsHash(requirementsPath));
     console.log('[sidecar-setup] sidecar environment ready');
     return py;
   })().catch((err: unknown) => {
