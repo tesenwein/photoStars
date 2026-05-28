@@ -83,7 +83,10 @@ export function registerIngestHandlers(): void {
       const results: WriteRatingResult[] = [];
       for (const item of items) {
         try {
-          await writeRating({ path: item.path, type: item.type, stars: item.stars, backup: item.backup });
+          await writeRating({
+            path: item.path, type: item.type, stars: item.stars,
+            backup: item.backup, lrLabel: item.lrLabel, lrPickLabel: item.lrPickLabel,
+          });
           results.push({ path: item.path, ok: true });
         } catch (err) {
           results.push({ path: item.path, ok: false, error: (err as Error).message });

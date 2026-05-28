@@ -9,6 +9,10 @@ export interface WriteRatingOptions {
   stars: number;
   /** Copy original/sidecar to <name>.bak before overwriting. */
   backup?: boolean;
+  /** Lightroom xmp:Label color string (e.g. 'Green', 'Red', ''). */
+  lrLabel?: string;
+  /** Lightroom xmp:PickLabel: 1=picked, 0=unflagged, -1=rejected. */
+  lrPickLabel?: number;
 }
 
 function backupPath(filePath: string): string {
@@ -16,11 +20,15 @@ function backupPath(filePath: string): string {
 }
 
 export async function writeRating(opts: WriteRatingOptions): Promise<void> {
-  const { path, type, stars, backup = false } = opts;
+  const { path, type, stars, backup = false, lrLabel, lrPickLabel } = opts;
 
   if (!Number.isInteger(stars) || stars < 0 || stars > 5) {
     throw new Error(`Invalid rating: stars must be an integer between 0 and 5, got ${stars}`);
   }
+
+  const tags: Record<string, unknown> = { Rating: stars };
+  if (lrLabel !== undefined) tags['Label'] = lrLabel;
+  if (lrPickLabel !== undefined) tags['PickLabel'] = lrPickLabel;
 
   if (type === 'raw') {
     const dir = dirname(path);
@@ -29,14 +37,12 @@ export async function writeRating(opts: WriteRatingOptions): Promise<void> {
 
     if (existsSync(sidecarPath)) {
       if (backup) copyFileSync(sidecarPath, backupPath(sidecarPath));
-      // Write to existing sidecar in-place.
-      await exiftoolInstance.write(sidecarPath, { Rating: stars }, ['-overwrite_original']);
+      await exiftoolInstance.write(sidecarPath, tags, ['-overwrite_original']);
     } else {
-      // Create sidecar: exiftool writes to a new file via -o.
-      await exiftoolInstance.write(path, { Rating: stars }, ['-o', sidecarPath]);
+      await exiftoolInstance.write(path, tags, ['-o', sidecarPath]);
     }
   } else {
     if (backup && existsSync(path)) copyFileSync(path, backupPath(path));
-    await exiftoolInstance.write(path, { Rating: stars }, ['-overwrite_original']);
+    await exiftoolInstance.write(path, tags, ['-overwrite_original']);
   }
 }

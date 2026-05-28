@@ -37,6 +37,10 @@ export interface WriteRatingItem {
   stars: number;
   /** Copy original/sidecar to <name>.bak before overwriting. */
   backup?: boolean;
+  /** Lightroom color label to write to xmp:Label. */
+  lrLabel?: string;
+  /** Lightroom pick flag: 1 picked, 0 unflagged, -1 rejected. */
+  lrPickLabel?: number;
 }
 
 export interface WriteRatingResult {

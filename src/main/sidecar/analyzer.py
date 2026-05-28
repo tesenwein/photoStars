@@ -151,6 +151,20 @@ def analyze_face_eye(image_path: str) -> dict:
         or worst_tilt > _TILT_THRESHOLD_DEG
     )
 
+    # Bounding box of the first (largest) face, normalised 0-1.
+    face_bbox = None
+    if results.multi_face_landmarks:
+        lm0 = results.multi_face_landmarks[0].landmark
+        xs = [l.x for l in lm0]
+        ys = [l.y for l in lm0]
+        pad = 0.05  # small padding around the face
+        face_bbox = {
+            "x": max(0.0, min(xs) - pad),
+            "y": max(0.0, min(ys) - pad),
+            "w": min(1.0, max(xs) - min(xs) + 2 * pad),
+            "h": min(1.0, max(ys) - min(ys) + 2 * pad),
+        }
+
     return {
         "facesDetected": len(results.multi_face_landmarks),
         "allEyesOpen":   all_eyes_open,
@@ -158,6 +172,7 @@ def analyze_face_eye(image_path: str) -> dict:
         "mouthOpen":     any_mouth_open,
         "headTiltDeg":   round(worst_tilt, 1),
         "badExpression": bad_expression,
+        "faceBbox":      face_bbox,
     }
 
 

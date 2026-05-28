@@ -2,6 +2,11 @@ export type ImageFileType = 'raw' | 'jpeg' | 'heic';
 
 export type ExposureHint = 'ok' | 'overexposed' | 'underexposed';
 
+export interface FaceBbox {
+  /** Normalised 0–1 relative to the preview image dimensions. */
+  x: number; y: number; w: number; h: number;
+}
+
 export interface EyeStatus {
   facesDetected: number;
   allEyesOpen: boolean;
@@ -13,6 +18,29 @@ export interface EyeStatus {
   headTiltDeg?: number;
   /** Aggregate bad-expression flag: closed eyes OR mouth open OR extreme tilt. */
   badExpression?: boolean;
+  /** Bounding box of the primary (largest) face in the preview. */
+  faceBbox?: FaceBbox;
+}
+
+/** Lightroom color label value written to xmp:Label. */
+export type LrLabel = 'Red' | 'Yellow' | 'Green' | 'Blue' | 'Purple' | '';
+/** Lightroom pick flag: 1 = picked, 0 = unflagged, -1 = rejected. */
+export type LrPickLabel = 1 | 0 | -1;
+
+/** Compute LR color label from effective stars + eye/expression status. */
+export function lrLabel(stars: number, badExpression: boolean): LrLabel {
+  if (badExpression) return 'Red';
+  if (stars >= 4) return 'Green';
+  if (stars === 3) return 'Blue';
+  if (stars === 2) return 'Yellow';
+  return '';
+}
+
+/** Compute LR pick flag from effective stars. */
+export function lrPickLabel(stars: number): LrPickLabel {
+  if (stars >= 4) return 1;
+  if (stars <= 1) return -1;
+  return 0;
 }
 
 export interface PhotoImage {

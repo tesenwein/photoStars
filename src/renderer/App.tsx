@@ -3,8 +3,11 @@ import { useImageStore } from './store/imageStore';
 import { ImageTile } from './components/ImageTile';
 import { DetailView } from './components/DetailView';
 import { FilterSortBar } from './components/FilterSortBar';
-import { effectiveStars, type PhotoImage } from '../shared/types';
+import { SplitView } from './components/SplitView';
+import { effectiveStars, lrLabel, lrPickLabel, type PhotoImage } from '../shared/types';
 import type { WriteRatingItem } from '../shared/ipc';
+
+type ViewMode = 'grid' | 'split';
 
 function sortImages(images: PhotoImage[], field: string, dir: string): PhotoImage[] {
   const sign = dir === 'asc' ? 1 : -1;
@@ -24,19 +27,21 @@ function sortImages(images: PhotoImage[], field: string, dir: string): PhotoImag
 }
 
 export function App(): React.JSX.Element {
-  const folder        = useImageStore((s) => s.folder);
-  const images        = useImageStore((s) => s.images);
-  const selected      = useImageStore((s) => s.selected);
-  const sort          = useImageStore((s) => s.sort);
-  const filter        = useImageStore((s) => s.filter);
-  const setFolder     = useImageStore((s) => s.setFolder);
-  const setImages     = useImageStore((s) => s.setImages);
-  const updateImage   = useImageStore((s) => s.updateImage);
+  const folder         = useImageStore((s) => s.folder);
+  const images         = useImageStore((s) => s.images);
+  const selected       = useImageStore((s) => s.selected);
+  const sort           = useImageStore((s) => s.sort);
+  const filter         = useImageStore((s) => s.filter);
+  const setFolder      = useImageStore((s) => s.setFolder);
+  const setImages      = useImageStore((s) => s.setImages);
+  const updateImage    = useImageStore((s) => s.updateImage);
   const clearSelection = useImageStore((s) => s.clearSelection);
 
   const [openPath, setOpenPath] = useState<string | undefined>();
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [writing,  setWriting]  = useState(false);
   const [backup,   setBackup]   = useState(false);
+  const [writeLr,  setWriteLr]  = useState(true);
   const [status,   setStatus]   = useState<string>('');
 
   useEffect(() => {
@@ -94,12 +99,18 @@ export function App(): React.JSX.Element {
 
     setWriting(true);
     setStatus(`Writing ${targets.length}…`);
-    const items: WriteRatingItem[] = targets.map((img) => ({
-      path: img.path,
-      type: img.type,
-      stars: effectiveStars(img) as number,
-      backup,
-    }));
+    const items: WriteRatingItem[] = targets.map((img) => {
+      const stars = effectiveStars(img) as number;
+      const bad   = img.eyeStatus?.badExpression ?? false;
+      return {
+        path:  img.path,
+        type:  img.type,
+        stars,
+        backup,
+        lrLabel:     writeLr ? lrLabel(stars, bad) : undefined,
+        lrPickLabel: writeLr ? lrPickLabel(stars)   : undefined,
+      };
+    });
 
     const results = await window.api.writeRatings(items);
     let ok = 0;
@@ -111,55 +122,74 @@ export function App(): React.JSX.Element {
     setWriting(false);
   };
 
-  const open    = images.find((i) => i.path === openPath);
-  const pending = images.filter((i) => !i.previewPath).length;
+  const open         = images.find((i) => i.path === openPath);
+  const pending      = images.filter((i) => !i.previewPath).length;
   const selectedCount = selected.size;
 
   return (
     <div className="flex h-full flex-col bg-slate-900 text-slate-100">
-      <header className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+      <header className="flex items-center justify-between border-b border-slate-700 px-6 py-3">
         <div>
           <h1 className="text-xl font-semibold">PhotoStars</h1>
           {folder && <p className="mt-0.5 text-xs text-slate-400">{folder}</p>}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {status && <span className="text-sm text-slate-400">{status}</span>}
           {images.length > 0 && (
             <span className="text-sm text-slate-400">
               {images.length} images{pending > 0 ? ` · ${pending} loading` : ''}
             </span>
           )}
+
+          {/* View toggle */}
+          {images.length > 0 && (
+            <div className="flex overflow-hidden rounded border border-slate-600 text-sm">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1.5 ${viewMode === 'grid' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+                title="Grid view"
+              >⊞</button>
+              <button
+                onClick={() => setViewMode('split')}
+                className={`px-3 py-1.5 ${viewMode === 'split' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+                title="Split view"
+              >▤</button>
+            </div>
+          )}
+
           {images.length > 0 && (
             <>
               <button
                 onClick={() => apply('selected')}
                 disabled={writing || selectedCount === 0}
-                className="rounded border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800 disabled:opacity-40"
+                className="rounded border border-slate-600 px-3 py-1.5 text-sm hover:bg-slate-800 disabled:opacity-40"
               >
                 Apply selected{selectedCount ? ` (${selectedCount})` : ''}
               </button>
               <button
                 onClick={() => apply('all')}
                 disabled={writing}
-                className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500 disabled:opacity-40"
+                className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500 disabled:opacity-40"
               >
                 Apply all
               </button>
             </>
           )}
+
+          {/* Options */}
           <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-400">
-            <input
-              type="checkbox"
-              checked={backup}
-              onChange={(e) => setBackup(e.target.checked)}
-              className="accent-amber-400"
-            />
+            <input type="checkbox" checked={writeLr} onChange={(e) => setWriteLr(e.target.checked)} className="accent-amber-400" />
+            LR labels
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-400">
+            <input type="checkbox" checked={backup} onChange={(e) => setBackup(e.target.checked)} className="accent-amber-400" />
             Backup
           </label>
+
           <button
             onClick={handleOpenFolder}
             disabled={writing}
-            className="rounded bg-amber-500 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-40"
+            className="rounded bg-amber-500 px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-40"
           >
             Open folder
           </button>
@@ -168,24 +198,28 @@ export function App(): React.JSX.Element {
 
       {images.length > 0 && <FilterSortBar />}
 
-      <main className="flex-1 overflow-y-auto p-6">
-        {visibleImages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-slate-400">
-            <p>{images.length === 0 ? 'Open a folder to load photos.' : 'No images match the current filters.'}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
-            {visibleImages.map((img) => (
-              <ImageTile
-                key={img.path}
-                image={img}
-                selected={selected.has(img.path)}
-                onOpen={() => setOpenPath(img.path)}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+      {viewMode === 'split' && images.length > 0 ? (
+        <SplitView images={images} filteredImages={visibleImages} />
+      ) : (
+        <main className="flex-1 overflow-y-auto p-6">
+          {visibleImages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-slate-400">
+              <p>{images.length === 0 ? 'Open a folder to load photos.' : 'No images match the current filters.'}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
+              {visibleImages.map((img) => (
+                <ImageTile
+                  key={img.path}
+                  image={img}
+                  selected={selected.has(img.path)}
+                  onOpen={() => setOpenPath(img.path)}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      )}
 
       {open && <DetailView image={open} onClose={() => setOpenPath(undefined)} />}
     </div>

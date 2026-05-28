@@ -126,6 +126,7 @@ export class SidecarManager {
       mouthOpen:     r['mouthOpen']    as boolean | undefined,
       headTiltDeg:   r['headTiltDeg']  as number | undefined,
       badExpression: (r['badExpression'] as boolean) ?? false,
+      faceBbox:      r['faceBbox']     as import('../../shared/types').FaceBbox | undefined,
     };
   }
 
