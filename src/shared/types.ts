@@ -68,6 +68,8 @@ export interface PhotoImage {
   eyeStatus?: EyeStatus;
   /** NIMA-like aesthetic score, 1-10. */
   aestheticsScore?: number;
+  /** True when faces or skin tones detected — portrait weights applied. */
+  isPortrait?: boolean;
 
   /** Stars derived by the scoring pipeline (0-5). */
   derivedStars?: number;

@@ -3,6 +3,7 @@ import { computeSharpness } from './sharpness';
 import { computeExposure } from './exposure';
 import { sidecar } from '../sidecar/sidecarManager';
 import { readAnalysisCache, writeAnalysisCache } from './analysisCache';
+import { isPortraitSubject } from './skinDetect';
 import type { ExposureHint, EyeStatus } from '../../shared/types';
 import * as config from '../scoring.config.json';
 
@@ -12,10 +13,10 @@ export interface AnalysisResult {
   exposureHint: ExposureHint;
   eyeStatus?: EyeStatus;
   aestheticsScore?: number;
+  /** True when faces or significant skin tones detected — uses portrait weights. */
+  isPortrait?: boolean;
   derivedStars: number;
 }
-
-/** burstRank 1 = best slot in burst (no penalty), 2+ = progressively capped. */
 
 function normalizeSharpness(variance: number): number {
   const { floor, ceil } = config.sharpness;
@@ -28,9 +29,13 @@ function deriveStars(
   exposureScore: number,
   aestheticsScore: number | undefined,
   eyeStatus: EyeStatus | undefined,
-  burstRank: number | undefined
+  burstRank: number | undefined,
+  isPortrait: boolean
 ): number {
-  const { weights, hardCaps } = config;
+  const { hardCaps } = config;
+
+  // Portrait shots use reduced exposure weight — moody/dark lighting is intentional.
+  const weights = isPortrait ? config.portraitWeights : config.weights;
 
   // Hard cap: severely blurry images are never above blurryMaxStars.
   const rawVariance = sharpNorm * (config.sharpness.ceil - config.sharpness.floor) + config.sharpness.floor;
@@ -54,9 +59,9 @@ function deriveStars(
     }
   }
 
-  // Burst penalty: non-best shots in a burst are capped below the best slot.
+  // Burst penalty: non-best shots are capped below the best slot.
   if (burstRank !== undefined && burstRank > 1) {
-    const burstCap = Math.max(0, 3 - (burstRank - 1)); // rank2→2, rank3→1, rank4+→0
+    const burstCap = Math.max(0, 3 - (burstRank - 1));
     stars = Math.min(stars, burstCap);
   }
 
@@ -64,15 +69,16 @@ function deriveStars(
 }
 
 export async function analyzeImage(previewPath: string, burstRank?: number): Promise<AnalysisResult> {
-  // Check cache keyed on the preview file's mtime.
   let mtime = 0;
   try { mtime = (await fs.stat(previewPath)).mtimeMs; } catch { /* use 0 */ }
 
   const cached = await readAnalysisCache(previewPath, mtime);
   if (cached) {
-    // Re-derive stars with the current burstRank (may differ between runs).
     const sharpNorm = normalizeSharpness(cached.sharpnessScore);
-    cached.derivedStars = deriveStars(sharpNorm, cached.exposureScore, cached.aestheticsScore, cached.eyeStatus, burstRank);
+    cached.derivedStars = deriveStars(
+      sharpNorm, cached.exposureScore, cached.aestheticsScore,
+      cached.eyeStatus, burstRank, cached.isPortrait ?? false
+    );
     return cached;
   }
 
@@ -83,18 +89,17 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
 
   const sharpNorm = normalizeSharpness(sharpnessScore);
 
-  // Sidecar calls are best-effort; failures degrade gracefully.
   let eyeStatus: EyeStatus | undefined;
   let aestheticsScore: number | undefined;
-
   try {
     [eyeStatus, aestheticsScore] = await Promise.all([
       sidecar.analyzeFaceEye(previewPath),
       sidecar.analyzeAesthetics(previewPath),
     ]);
-  } catch {
-    // Sidecar not installed or failed — continue without face/aesthetics data.
-  }
+  } catch { /* sidecar unavailable */ }
+
+  // Detect portrait subject via face detection or skin-tone fraction.
+  const portrait = await isPortraitSubject(previewPath, eyeStatus?.facesDetected ?? 0);
 
   const result: AnalysisResult = {
     sharpnessScore,
@@ -102,7 +107,8 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
     exposureHint:   exposure.hint,
     eyeStatus,
     aestheticsScore,
-    derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank),
+    isPortrait:   portrait,
+    derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank, portrait),
   };
 
   void writeAnalysisCache(previewPath, mtime, result);

@@ -4,6 +4,11 @@
     "exposure": 0.35,
     "aesthetics": 0.20
   },
+  "portraitWeights": {
+    "sharpness": 0.65,
+    "exposure": 0.10,
+    "aesthetics": 0.25
+  },
   "qualityPower": 1.8,
   "hardCaps": {
     "blurryVariance": 50,

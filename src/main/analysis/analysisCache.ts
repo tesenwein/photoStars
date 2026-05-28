@@ -3,7 +3,7 @@ import * as path from 'path';
 import { cacheDir, cacheKey } from '../ingest/preview';
 import type { AnalysisResult } from './analyze';
 
-const CACHE_VERSION = 4; // bump to invalidate old cached results
+const CACHE_VERSION = 5; // bump to invalidate old cached results
 
 interface CacheEntry {
   version: number;

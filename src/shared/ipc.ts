@@ -28,6 +28,7 @@ export interface AnalysisReadyPayload {
   exposureHint?: ExposureHint;
   eyeStatus?: import('./types').EyeStatus;
   aestheticsScore?: number;
+  isPortrait?: boolean;
   derivedStars?: number;
   error?: string;
 }

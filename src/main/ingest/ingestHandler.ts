@@ -62,6 +62,7 @@ export function registerIngestHandlers(): void {
               exposureHint:    scores.exposureHint,
               eyeStatus:       scores.eyeStatus,
               aestheticsScore: scores.aestheticsScore,
+              isPortrait:      scores.isPortrait,
               derivedStars:    scores.derivedStars,
             };
             send(sender, IpcChannels.analysisReady, payload);

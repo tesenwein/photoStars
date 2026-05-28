@@ -61,6 +61,7 @@ export function App(): React.JSX.Element {
         exposureHint:    p.exposureHint,
         eyeStatus:       p.eyeStatus,
         aestheticsScore: p.aestheticsScore,
+        isPortrait:      p.isPortrait,
         derivedStars:    p.derivedStars,
       });
     });
