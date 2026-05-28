@@ -235,13 +235,37 @@ def _get_nima():
     return _nima_session
 
 
+def _resize_shorter_side(rgb, target: int):
+    h, w = rgb.shape[:2]
+    scale = target / min(h, w)
+    new_w, new_h = max(target, round(w * scale)), max(target, round(h * scale))
+    interp = cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR
+    return cv2.resize(rgb, (new_w, new_h), interpolation=interp)
+
+
+def _center_crop(rgb, size: int):
+    h, w = rgb.shape[:2]
+    top = (h - size) // 2
+    left = (w - size) // 2
+    return rgb[top:top + size, left:left + size]
+
+
+def _preprocess(rgb):
+    x = rgb.astype(np.float32) / 255.0
+    x = (x - _IMAGENET_MEAN) / _IMAGENET_STD
+    return np.transpose(x, (2, 0, 1)).astype(np.float32)
+
+
 def _nima_score(img) -> float:
     session = _get_nima()
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    rgb = cv2.resize(rgb, (224, 224), interpolation=cv2.INTER_AREA)
-    x = rgb.astype(np.float32) / 255.0
-    x = (x - _IMAGENET_MEAN) / _IMAGENET_STD
-    x = np.transpose(x, (2, 0, 1))[np.newaxis, ...].astype(np.float32)
+    # Match NIMA inference: aspect-preserving resize (shorter side -> 256),
+    # then a 224 center crop. Resizing straight to 224x224 squashes the aspect
+    # ratio and degrades the score; this preserves the geometry the model saw
+    # in training.
+    resized = _resize_shorter_side(rgb, 256)
+    crop = _center_crop(resized, 224)
+    x = _preprocess(crop)[np.newaxis, ...]
     probs = session.run(None, {session.get_inputs()[0].name: x})[0][0]
     buckets = np.arange(1, len(probs) + 1, dtype=np.float32)
     return round(float((probs * buckets).sum()), 2)
