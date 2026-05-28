@@ -28,6 +28,39 @@ export function ImageTile({
 
   const stars = image.manualStars ?? suggested;
   const isDerived = image.manualStars === undefined;
+  const calculated = image.sharpnessScore !== undefined;
+
+  if (!calculated) {
+    return (
+      <div
+        className="group relative overflow-hidden rounded-lg border border-dashed border-stone-300 bg-white opacity-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:shadow-none"
+        aria-disabled="true"
+      >
+        <div className="flex aspect-square items-center justify-center">
+          {image.previewPath ? (
+            <img
+              src={mediaUrl(image.previewPath)}
+              alt={image.name}
+              className="h-full w-full object-cover grayscale"
+              loading="lazy"
+            />
+          ) : (
+            <span className="animate-pulse text-xs text-stone-400 dark:text-zinc-500">Loading…</span>
+          )}
+          <div className="absolute inset-0 flex items-center justify-center bg-white/40 dark:bg-black/40">
+            <span className="rounded bg-stone-900/70 px-2 py-1 text-[11px] font-medium text-white">
+              analyzing…
+            </span>
+          </div>
+        </div>
+        <div className="px-2 py-1.5 text-xs">
+          <span className="truncate text-stone-500 dark:text-zinc-400" title={image.name}>
+            {image.name}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

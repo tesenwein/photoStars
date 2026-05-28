@@ -45,6 +45,7 @@ interface ImageStore {
   /** Set a manual star override (null clears it back to the derived value). */
   setManualStars: (path: string, stars: number | null) => void;
   toggleMarkForDelete: (path: string) => void;
+  setCullStatus: (path: string, status: 'keep' | 'neutral' | 'reject') => void;
   removeImages: (paths: string[]) => void;
   setSort: (field: SortField, dir: SortDir) => void;
   setFilter: (patch: Partial<FilterState>) => void;
@@ -98,7 +99,15 @@ export const useImageStore = create<ImageStore>((set) => ({
   toggleMarkForDelete: (path) =>
     set((state) => ({
       images: state.images.map((i) =>
-        i.path === path ? { ...i, markedForDelete: !i.markedForDelete } : i
+        i.path === path
+          ? { ...i, markedForDelete: !i.markedForDelete, cullStatus: !i.markedForDelete ? 'reject' : 'neutral' }
+          : i
+      ),
+    })),
+  setCullStatus: (path, status) =>
+    set((state) => ({
+      images: state.images.map((i) =>
+        i.path === path ? { ...i, cullStatus: status, markedForDelete: status === 'reject' } : i
       ),
     })),
   removeImages: (paths) =>

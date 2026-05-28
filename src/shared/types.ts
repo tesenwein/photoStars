@@ -87,8 +87,11 @@ export interface PhotoImage {
   existingRating?: number;
   /** Whether the rating has been written to disk. */
   written: boolean;
-  /** Marked by the user for deletion; removed from disk on "Delete marked". */
+  /** Marked by the user for deletion; removed from disk on "Delete marked".
+   * Kept in sync with cullStatus === 'reject'. */
   markedForDelete?: boolean;
+  /** Tri-state cull flag: keep (pick), neutral (default), reject (delete). */
+  cullStatus?: 'keep' | 'neutral' | 'reject';
 
   /** Capture time (Unix ms) read from EXIF; used to re-bucket bursts live. */
   timestamp?: number;

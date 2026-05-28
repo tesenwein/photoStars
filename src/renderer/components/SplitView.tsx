@@ -148,6 +148,7 @@ export function SplitView({ images, filteredImages, getSuggested }: {
 }): React.JSX.Element {
   const setManualStars      = useImageStore((s) => s.setManualStars);
   const toggleMarkForDelete = useImageStore((s) => s.toggleMarkForDelete);
+  const setCullStatus       = useImageStore((s) => s.setCullStatus);
 
   const [idx, setIdx]         = useState(0);
   const [hiResPath, setHiRes] = useState<string | undefined>();
@@ -286,18 +287,27 @@ export function SplitView({ images, filteredImages, getSuggested }: {
             <div className="absolute inset-0 border-4 border-rose-500 pointer-events-none z-10" />
           )}
 
-          {/* Mark for delete button */}
-          <button
-            onClick={() => toggleMarkForDelete(image.path)}
-            className={`absolute top-4 right-20 z-20 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-              image.markedForDelete
-                ? 'bg-rose-600 text-white hover:bg-rose-500'
-                : 'bg-black/50 text-white hover:bg-rose-700/80'
-            }`}
-            title="Mark for delete (X)"
-          >
-            {image.markedForDelete ? '🗑 Marked' : '🗑 Mark delete'}
-          </button>
+          {/* Cull status button group */}
+          <div className="absolute top-4 right-20 z-20 flex overflow-hidden rounded-full bg-black/50 text-sm font-medium">
+            {([
+              { key: 'keep',    label: '✓ Keep',   active: 'bg-emerald-600 text-white', hover: 'hover:bg-emerald-700/70 text-zinc-200' },
+              { key: 'neutral', label: '○',        active: 'bg-stone-500 text-white',   hover: 'hover:bg-stone-600/70 text-zinc-200' },
+              { key: 'reject',  label: '🗑 Reject', active: 'bg-rose-600 text-white',    hover: 'hover:bg-rose-700/70 text-zinc-200' },
+            ] as const).map((b) => {
+              const cur = image.cullStatus ?? (image.markedForDelete ? 'reject' : 'neutral');
+              const isActive = cur === b.key;
+              return (
+                <button
+                  key={b.key}
+                  onClick={() => setCullStatus(image.path, b.key)}
+                  title={`${b.key} (${b.key === 'reject' ? 'X' : b.key})`}
+                  className={`px-3 py-1.5 transition-colors ${isActive ? b.active : b.hover}`}
+                >
+                  {b.label}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Position counter */}
           <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-zinc-200">
