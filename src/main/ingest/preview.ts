@@ -8,11 +8,11 @@ import { exiftoolInstance } from '../exiftool/exiftool';
 
 const THUMB_MAX = 512;
 
-function cacheDir(): string {
+export function cacheDir(): string {
   return path.join(app.getPath('userData'), 'previews');
 }
 
-function cacheKey(filePath: string): string {
+export function cacheKey(filePath: string): string {
   return crypto.createHash('sha1').update(filePath).digest('hex');
 }
 
@@ -23,67 +23,74 @@ async function ensureCacheDir(): Promise<string> {
 }
 
 /**
- * Get a JPEG buffer for any image file.
- * - JPEG/HEIC: sharp reads directly.
- * - RAW/DNG: try sharp (libvips + libraw), then fall back to exiftool embedded preview.
+ * For RAW files we prefer the embedded JPEG (extractJpgFromRaw).
+ * This is more reliable for orientation since the embedded JPEG carries its own
+ * EXIF Orientation tag, whereas libraw's DNG decode can interact with sharp's
+ * .rotate() in unexpected ways (especially Orientation=8 on Leica files).
  */
-async function toJpegBuffer(filePath: string, type: ImageFileType): Promise<Buffer> {
-  if (type !== 'raw') {
-    return sharp(filePath)
-      .rotate()
-      .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-  }
+async function rawToJpegBuffer(filePath: string, tmpDir: string): Promise<Buffer> {
+  const tmp = path.join(tmpDir, `__raw_${cacheKey(filePath)}.jpg`);
 
-  // RAW: try sharp/libraw first (handles DNG, many other RAW formats).
+  // Try embedded JpgFromRaw first (Leica SL2: ~1 MB, good quality).
   try {
-    const buf = await sharp(filePath)
-      .rotate()
-      .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    if (buf.length > 1000) return buf;
-  } catch {
-    // fall through to exiftool
-  }
-
-  // Fall back: extract embedded JPEG preview via exiftool-vendored.
-  const tmpFile = path.join(await ensureCacheDir(), `__raw_${cacheKey(filePath)}.jpg`);
-  try {
-    // extractJpgFromRaw writes the embedded JPEG to tmpFile.
-    await exiftoolInstance.extractJpgFromRaw(filePath, tmpFile);
-    const raw = await fs.readFile(tmpFile);
-    if (raw.length > 1000) {
-      return sharp(raw).rotate()
+    await exiftoolInstance.extractJpgFromRaw(filePath, tmp);
+    const buf = await fs.readFile(tmp);
+    if (buf.length > 10_000) {
+      return sharp(buf)
+        .rotate()  // apply EXIF orientation from the embedded JPEG
         .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
     }
+  } catch {
+    // embedded JPEG not available
   } finally {
-    fs.unlink(tmpFile).catch(() => undefined);
+    fs.unlink(tmp).catch(() => undefined);
   }
 
-  throw new Error(`Cannot generate preview for ${path.basename(filePath)}`);
+  // Fall back: let sharp/libraw decode the raw data directly.
+  return sharp(filePath)
+    .rotate()
+    .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer();
 }
 
 export async function generatePreview(
   filePath: string,
   type: ImageFileType
 ): Promise<string> {
-  const dir = await ensureCacheDir();
+  const dir    = await ensureCacheDir();
   const outPath = path.join(dir, `${cacheKey(filePath)}.jpg`);
 
+  // Return cached version if it exists.
   try {
     await fs.access(outPath);
-    return outPath; // already cached
-  } catch {
-    // not cached yet
+    return outPath;
+  } catch { /* not cached */ }
+
+  let buf: Buffer;
+  if (type === 'raw') {
+    buf = await rawToJpegBuffer(filePath, dir);
+  } else {
+    buf = await sharp(filePath)
+      .rotate()
+      .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
   }
 
-  const buf = await toJpegBuffer(filePath, type);
   await fs.writeFile(outPath, buf);
   return outPath;
+}
+
+/** Clear all cached previews (call when user wants a fresh re-scan). */
+export async function clearPreviewCache(): Promise<void> {
+  const dir = cacheDir();
+  try {
+    const files = await fs.readdir(dir);
+    await Promise.all(files.map((f) => fs.unlink(path.join(dir, f)).catch(() => undefined)));
+  } catch { /* dir doesn't exist yet */ }
 }
 
 export interface PreviewResult {

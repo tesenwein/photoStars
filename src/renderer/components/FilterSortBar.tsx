@@ -58,6 +58,19 @@ export function FilterSortBar(): React.JSX.Element {
 
       <div className="h-4 w-px bg-slate-700" />
 
+      {/* Burst window */}
+      <div className="flex items-center gap-2">
+        <span className="text-slate-500">Burst</span>
+        <input
+          type="range" min={1} max={10} step={1}
+          value={filter.burstWindowSec}
+          onChange={(e) => setFilter({ burstWindowSec: Number(e.target.value) })}
+          className="w-20 accent-amber-400"
+          title="Burst grouping window in seconds"
+        />
+        <span className="w-8 text-slate-300">{filter.burstWindowSec}s</span>
+      </div>
+
       {/* Burst best only */}
       <label className="flex cursor-pointer items-center gap-1.5">
         <input
@@ -66,7 +79,7 @@ export function FilterSortBar(): React.JSX.Element {
           onChange={(e) => setFilter({ burstBestOnly: e.target.checked })}
           className="accent-amber-400"
         />
-        <span>Burst best only</span>
+        <span>Best only</span>
       </label>
 
       <div className="h-4 w-px bg-slate-700" />

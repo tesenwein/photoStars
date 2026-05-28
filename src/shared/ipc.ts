@@ -8,6 +8,7 @@ export const IpcChannels = {
   previewReady: 'preview-ready',
   analysisReady: 'analysis-ready',
   writeRatings: 'write-ratings',
+  clearCache: 'clear-cache',
 } as const;
 
 /** Payload pushed to the renderer as each preview finishes generating. */
@@ -54,11 +55,13 @@ export interface PhotoStarsApi {
   ping: () => Promise<string>;
   selectFolder: () => Promise<string | undefined>;
   /** Scan a folder and return the image list; previews/analysis stream via events. */
-  ingestFolder: (folder: string) => Promise<PhotoImage[]>;
+  ingestFolder: (folder: string, opts?: { burstWindowSec?: number }) => Promise<PhotoImage[]>;
   onPreviewReady: (cb: (payload: PreviewReadyPayload) => void) => () => void;
   onAnalysisReady: (cb: (payload: AnalysisReadyPayload) => void) => () => void;
   /** Write star ratings to disk. Only ever called on explicit user Apply. */
   writeRatings: (items: WriteRatingItem[]) => Promise<WriteRatingResult[]>;
+  /** Delete preview + analysis cache so the next ingest re-generates everything. */
+  clearCache: () => Promise<void>;
 }
 
 declare global {

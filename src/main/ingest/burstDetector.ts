@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import { exiftoolInstance } from '../exiftool/exiftool';
 import type { PhotoImage } from '../../shared/types';
 
-const BURST_WINDOW_MS = 3_000; // shots within 3 s belong to the same burst
+const DEFAULT_BURST_WINDOW_MS = 3_000;
 
 interface Timestamped {
   path: string;
@@ -29,9 +29,8 @@ async function readTimestamp(filePath: string): Promise<number> {
   }
 }
 
-function groupKey(ts: number): string {
-  // Round down to the burst window boundary, then hash to produce a short ID.
-  const bucket = Math.floor(ts / BURST_WINDOW_MS) * BURST_WINDOW_MS;
+function groupKey(ts: number, windowMs: number): string {
+  const bucket = Math.floor(ts / windowMs) * windowMs;
   return crypto.createHash('sha1').update(String(bucket)).digest('hex').slice(0, 8);
 }
 
@@ -45,6 +44,7 @@ function groupKey(ts: number): string {
  */
 export async function detectBursts(
   images: PhotoImage[],
+  burstWindowMs = DEFAULT_BURST_WINDOW_MS,
   concurrency = 8
 ): Promise<Map<string, { burstGroup: string; burstRank: number }>> {
   const result = new Map<string, { burstGroup: string; burstRank: number }>();
@@ -70,7 +70,7 @@ export async function detectBursts(
   const groups = new Map<string, string[]>();
   for (const t of timestamped) {
     if (t.ts === -1) continue;
-    const key = groupKey(t.ts);
+    const key = groupKey(t.ts, burstWindowMs);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(t.path);
   }

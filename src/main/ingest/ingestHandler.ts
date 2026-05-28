@@ -7,7 +7,7 @@ import {
   type WriteRatingResult,
 } from '../../shared/ipc';
 import { scanFolder } from './scan';
-import { generatePreviews } from './preview';
+import { generatePreviews, clearPreviewCache } from './preview';
 import { detectBursts } from './burstDetector';
 import { analyzeImage } from '../analysis/analyze';
 import { writeRating } from '../exiftool/writeRating';
@@ -19,12 +19,17 @@ function send(sender: WebContents, channel: string, payload: unknown): boolean {
 }
 
 export function registerIngestHandlers(): void {
-  ipcMain.handle(IpcChannels.ingestFolder, async (event, folder: string) => {
+  ipcMain.handle(IpcChannels.clearCache, async () => {
+    await clearPreviewCache();
+  });
+
+  ipcMain.handle(IpcChannels.ingestFolder, async (event, folder: string, opts?: { burstWindowSec?: number }) => {
+    const burstWindowMs = (opts?.burstWindowSec ?? 3) * 1000;
     const images = await scanFolder(folder);
     const sender = event.sender;
 
     // Burst detection runs concurrently with preview generation.
-    const burstPromise = detectBursts(images).then((bursts) => {
+    const burstPromise = detectBursts(images, burstWindowMs).then((bursts) => {
       for (const [path, info] of bursts) {
         const img = images.find((i) => i.path === path);
         if (img) {

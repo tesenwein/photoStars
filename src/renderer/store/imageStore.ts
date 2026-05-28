@@ -8,6 +8,8 @@ export interface FilterState {
   minStars: number;
   unwrittenOnly: boolean;
   burstBestOnly: boolean;
+  /** Burst window in seconds — shots within this window are grouped. */
+  burstWindowSec: number;
 }
 
 interface ImageStore {
@@ -33,7 +35,7 @@ export const useImageStore = create<ImageStore>((set) => ({
   images: [],
   selected: new Set<string>(),
   sort: { field: 'name', dir: 'asc' },
-  filter: { minStars: 0, unwrittenOnly: false, burstBestOnly: false },
+  filter: { minStars: 0, unwrittenOnly: false, burstBestOnly: false, burstWindowSec: 3 },
 
   setFolder: (folder) => set({ folder }),
   setImages: (images) => set({ images }),

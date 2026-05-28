@@ -7,7 +7,7 @@
   "scripts": {
     "build": "pnpm build:main && pnpm build:renderer && pnpm copy:sidecar",
     "build:main": "tsc -p src/main/tsconfig.json",
-    "copy:sidecar": "node -e \"const fs=require('fs');const p='dist/main/sidecar';fs.mkdirSync(p,{recursive:true});fs.copyFileSync('src/main/sidecar/analyzer.py',p+'/analyzer.py');\"",
+    "copy:sidecar": "node -e \"const fs=require('fs');const p='dist/main/sidecar';fs.mkdirSync(p,{recursive:true});fs.copyFileSync('src/main/sidecar/analyzer.py',p+'/analyzer.py');try{fs.copyFileSync('src/main/sidecar/face_landmarker.task',p+'/face_landmarker.task')}catch(e){console.warn('face_landmarker.task not found, skipping');}\"",
     "pack": "pnpm build && electron-builder --dir",
     "dist": "pnpm build && electron-builder",
     "build:renderer": "webpack --config webpack.renderer.js",

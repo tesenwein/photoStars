@@ -1,6 +1,8 @@
+import * as fs from 'fs/promises';
 import { computeSharpness } from './sharpness';
 import { computeExposure } from './exposure';
 import { sidecar } from '../sidecar/sidecarManager';
+import { readAnalysisCache, writeAnalysisCache } from './analysisCache';
 import type { ExposureHint, EyeStatus } from '../../shared/types';
 import * as config from '../scoring.config.json';
 
@@ -62,6 +64,18 @@ function deriveStars(
 }
 
 export async function analyzeImage(previewPath: string, burstRank?: number): Promise<AnalysisResult> {
+  // Check cache keyed on the preview file's mtime.
+  let mtime = 0;
+  try { mtime = (await fs.stat(previewPath)).mtimeMs; } catch { /* use 0 */ }
+
+  const cached = await readAnalysisCache(previewPath, mtime);
+  if (cached) {
+    // Re-derive stars with the current burstRank (may differ between runs).
+    const sharpNorm = normalizeSharpness(cached.sharpnessScore);
+    cached.derivedStars = deriveStars(sharpNorm, cached.exposureScore, cached.aestheticsScore, cached.eyeStatus, burstRank);
+    return cached;
+  }
+
   const [sharpnessScore, exposure] = await Promise.all([
     computeSharpness(previewPath),
     computeExposure(previewPath),
@@ -82,12 +96,15 @@ export async function analyzeImage(previewPath: string, burstRank?: number): Pro
     // Sidecar not installed or failed — continue without face/aesthetics data.
   }
 
-  return {
+  const result: AnalysisResult = {
     sharpnessScore,
-    exposureScore: exposure.score,
-    exposureHint: exposure.hint,
+    exposureScore:  exposure.score,
+    exposureHint:   exposure.hint,
     eyeStatus,
     aestheticsScore,
     derivedStars: deriveStars(sharpNorm, exposure.score, aestheticsScore, eyeStatus, burstRank),
   };
+
+  void writeAnalysisCache(previewPath, mtime, result);
+  return result;
 }

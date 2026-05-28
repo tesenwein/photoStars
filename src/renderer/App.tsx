@@ -85,7 +85,7 @@ export function App(): React.JSX.Element {
     clearSelection();
     setImages([]);
     setStatus('Scanning…');
-    const imgs = await window.api.ingestFolder(picked);
+    const imgs = await window.api.ingestFolder(picked, { burstWindowSec: filter.burstWindowSec });
     setImages(imgs);
     setStatus(imgs.length === 0 ? 'No supported images found.' : '');
   };
@@ -186,6 +186,20 @@ export function App(): React.JSX.Element {
             Backup
           </label>
 
+          {images.length > 0 && (
+            <button
+              onClick={async () => {
+                setStatus('Clearing cache…');
+                await window.api.clearCache();
+                setStatus('Cache cleared — re-open folder to re-analyse.');
+              }}
+              disabled={writing}
+              className="rounded border border-slate-600 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800 disabled:opacity-40"
+              title="Delete cached previews and analysis — forces full re-run"
+            >
+              Clear cache
+            </button>
+          )}
           <button
             onClick={handleOpenFolder}
             disabled={writing}
