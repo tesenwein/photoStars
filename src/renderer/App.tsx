@@ -74,14 +74,23 @@ export function App(): React.JSX.Element {
     return assignRelativeStars(scored);
   }, [images, relativeRating, reScore]);
 
+  // Precompute suggested stars once per (images, config, relative curve) so the
+  // sort comparator and filters read O(1) instead of re-scoring per comparison.
+  const suggestedMap = useMemo(() => {
+    const m = new Map<string, number | undefined>();
+    for (const img of images) {
+      m.set(img.path, (relativeMap ? relativeMap.get(img.path) : undefined) ?? reScore(img).derivedStars);
+    }
+    return m;
+  }, [images, relativeMap, reScore]);
+
   const getSuggested = useCallback(
-    (img: PhotoImage): number | undefined =>
-      (relativeMap ? relativeMap.get(img.path) : undefined) ?? reScore(img).derivedStars,
-    [relativeMap, reScore]
+    (img: PhotoImage): number | undefined => suggestedMap.get(img.path),
+    [suggestedMap]
   );
   const effectiveOf = useCallback(
-    (img: PhotoImage): number | undefined => img.manualStars ?? getSuggested(img),
-    [getSuggested]
+    (img: PhotoImage): number | undefined => img.manualStars ?? suggestedMap.get(img.path),
+    [suggestedMap]
   );
 
   // Stable burst-group numbering (in scan order) for the grouped grid headers.
@@ -95,6 +104,7 @@ export function App(): React.JSX.Element {
   }, [images]);
 
   const [openPath, setOpenPath]       = useState<string | undefined>();
+  const openImage = useCallback((path: string) => setOpenPath(path), []);
   const [viewMode, setViewMode]       = useState<ViewMode>('grid');
   const [writing,   setWriting]       = useState(false);
   const [deleting,  setDeleting]      = useState(false);
@@ -391,7 +401,7 @@ export function App(): React.JSX.Element {
                     image={img}
                     suggested={getSuggested(img)}
                     selected={selected.has(img.path)}
-                    onOpen={() => setOpenPath(img.path)}
+                    onOpen={openImage}
                   />
                 );
                 if (!groupBursts) return visibleImages.map(tile);

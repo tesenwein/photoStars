@@ -28,7 +28,7 @@ export function BurstGroup({
             image={img}
             suggested={getSuggested(img)}
             selected={selectedPaths.has(img.path)}
-            onOpen={() => onOpen(img.path)}
+            onOpen={onOpen}
           />
         ))}
       </div>

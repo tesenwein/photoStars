@@ -10,7 +10,7 @@ const hintColor: Record<string, string> = {
   ok: 'bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
 };
 
-export function ImageTile({
+function ImageTileImpl({
   image,
   suggested,
   selected,
@@ -20,7 +20,7 @@ export function ImageTile({
   /** Suggested (derived/relative) stars; manual override wins when present. */
   suggested?: number;
   selected: boolean;
-  onOpen: () => void;
+  onOpen: (path: string) => void;
 }): React.JSX.Element {
   const toggleSelected     = useImageStore((s) => s.toggleSelected);
   const setManualStars     = useImageStore((s) => s.setManualStars);
@@ -33,25 +33,22 @@ export function ImageTile({
   if (!calculated) {
     return (
       <div
-        className="group relative overflow-hidden rounded-lg border border-dashed border-stone-300 bg-white opacity-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:shadow-none"
+        className="group relative overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:shadow-none"
         aria-disabled="true"
       >
-        <div className="flex aspect-square items-center justify-center">
+        <div className="flex aspect-square items-center justify-center bg-stone-100 dark:bg-zinc-900">
           {image.previewPath ? (
             <img
               src={mediaUrl(image.previewPath)}
               alt={image.name}
-              className="h-full w-full object-cover grayscale"
+              className="h-full w-full object-cover"
               loading="lazy"
             />
           ) : (
-            <span className="animate-pulse text-xs text-stone-400 dark:text-zinc-500">Loading…</span>
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-stone-300 border-t-amber-500 dark:border-zinc-700 dark:border-t-amber-400" />
           )}
-          <div className="absolute inset-0 flex items-center justify-center bg-white/40 dark:bg-black/40">
-            <span className="rounded bg-stone-900/70 px-2 py-1 text-[11px] font-medium text-white">
-              analyzing…
-            </span>
-          </div>
+          {/* Subtle analyzing badge */}
+          <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400 shadow" title="Analyzing…" />
         </div>
         <div className="px-2 py-1.5 text-xs">
           <span className="truncate text-stone-500 dark:text-zinc-400" title={image.name}>
@@ -71,7 +68,7 @@ export function ImageTile({
           ? 'border-emerald-500 ring-2 ring-emerald-500/40'
           : 'border-stone-200 dark:border-zinc-700'
       }`}
-      onClick={onOpen}
+      onClick={() => onOpen(image.path)}
     >
       <input
         type="checkbox"
@@ -131,11 +128,11 @@ export function ImageTile({
         </span>
       )}
 
-      <div className="flex aspect-square items-center justify-center">
+      <div className="flex aspect-square items-center justify-center bg-stone-100 dark:bg-zinc-900">
         {image.previewPath ? (
           <img src={mediaUrl(image.previewPath)} alt={image.name} className="h-full w-full object-cover" loading="lazy" />
         ) : (
-          <span className="animate-pulse text-xs text-stone-400 dark:text-zinc-500">Loading…</span>
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-stone-300 border-t-amber-500 dark:border-zinc-700 dark:border-t-amber-400" />
         )}
       </div>
 
@@ -167,3 +164,5 @@ export function ImageTile({
     </div>
   );
 }
+
+export const ImageTile = React.memo(ImageTileImpl);
