@@ -339,6 +339,12 @@ export function SplitView({ images, filteredImages, getSuggested }: {
                 Reset to suggestion
               </button>
             )}
+            {image.existingRating !== undefined && (
+              <p className="mt-2 text-xs text-stone-500 dark:text-zinc-500">
+                File rating: {'★'.repeat(image.existingRating)}{'☆'.repeat(5 - image.existingRating)}
+                <span className="ml-1 opacity-60">({image.existingRating}★ from XMP)</span>
+              </p>
+            )}
           </div>
 
           {/* Scores */}

@@ -83,6 +83,8 @@ export interface PhotoImage {
   derivedStars?: number;
   /** Manual override set by the user (0-5). */
   manualStars?: number;
+  /** Star rating originally read from XMP/EXIF on ingest (1-5). Never mutated after load. */
+  existingRating?: number;
   /** Whether the rating has been written to disk. */
   written: boolean;
   /** Marked by the user for deletion; removed from disk on "Delete marked". */

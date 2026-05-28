@@ -12,12 +12,22 @@ function ZoomImage({ src, alt }: { src: string; alt: string }): React.JSX.Elemen
   const [origin, setOrigin] = useState({ x: 50, y: 50 });
 
   const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!zoomed) return;
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     setOrigin({
       x: ((e.clientX - r.left) / r.width)  * 100,
       y: ((e.clientY - r.top)  / r.height) * 100,
     });
+  }, [zoomed]);
+
+  const onClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setOrigin({
+      x: ((e.clientX - r.left) / r.width)  * 100,
+      y: ((e.clientY - r.top)  / r.height) * 100,
+    });
+    setZoomed((z) => !z);
   }, []);
 
   return (
@@ -25,8 +35,7 @@ function ZoomImage({ src, alt }: { src: string; alt: string }): React.JSX.Elemen
       ref={ref}
       className="relative flex h-full w-full items-center justify-center overflow-hidden"
       style={{ cursor: zoomed ? 'zoom-out' : 'zoom-in' }}
-      onMouseEnter={() => setZoomed(true)}
-      onMouseLeave={() => setZoomed(false)}
+      onClick={onClick}
       onMouseMove={onMove}
     >
       <img
@@ -181,6 +190,12 @@ export function DetailView({
               >
                 Reset to suggestion
               </button>
+            )}
+            {image.existingRating !== undefined && (
+              <p className="mt-2 text-xs text-zinc-500">
+                File rating: {'★'.repeat(image.existingRating)}{'☆'.repeat(5 - image.existingRating)}
+                <span className="ml-1 text-zinc-600">({image.existingRating}★ from XMP)</span>
+              </p>
             )}
           </div>
 

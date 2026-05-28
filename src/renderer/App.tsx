@@ -125,8 +125,9 @@ export function App(): React.JSX.Element {
       // If the file already carries a rating, treat it as a manual star and
       // flag it as already-written so we don't overwrite it unintentionally.
       ...(p.existingRating !== undefined && {
-        manualStars: p.existingRating,
-        written:     true,
+        existingRating: p.existingRating,
+        manualStars:    p.existingRating,
+        written:        true,
       }),
     }));
     const offAnalysis = window.api.onAnalysisReady((p) => {
