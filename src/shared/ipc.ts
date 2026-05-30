@@ -11,6 +11,8 @@ export const IpcChannels = {
   clearCache: 'clear-cache',
   getHiResPreview: 'get-hires-preview',
   trashFiles: 'trash-files',
+  recordCorrection: 'record-correction',
+  readCorrections: 'read-corrections',
 } as const;
 
 /** Payload pushed to the renderer as each preview finishes generating. */
@@ -61,6 +63,39 @@ export interface WriteRatingResult {
   error?: string;
 }
 
+/**
+ * One persisted training sample: the analysis features of an image at the
+ * moment the user manually set a star rating, plus what the app had suggested
+ * versus what the user chose. The residual (userStars − suggestedStars) is the
+ * supervised signal a later calibration step learns from. Appended one-per-line
+ * to a JSONL file in userData so the dataset survives sessions and cache clears.
+ */
+export interface CorrectionRecord {
+  /** Epoch ms when the correction was made. */
+  ts: number;
+  path: string;
+  /** Stars the app suggested (derived/relative) before the user acted. */
+  suggestedStars?: number;
+  /** Stars the user explicitly chose. */
+  userStars: number;
+  /** 0–1 quality score the suggestion came from, if known. */
+  qualityScore?: number;
+  // ---- raw feature vector (mirrors the inputs to recomputeStars) ----
+  sharpnessScore?: number;
+  exposureScore?: number;
+  aestheticsScore?: number;
+  faceSharpnessScore?: number;
+  bokehRatio?: number;
+  isPortrait?: boolean;
+  burstRank?: number;
+  /** Burst group id, so burst picks can be mined as pairwise preferences. */
+  burstGroup?: string;
+  /** Flattened eye/expression flags relevant to the hard-cap penalties. */
+  facesDetected?: number;
+  allEyesOpen?: boolean;
+  badExpression?: boolean;
+}
+
 /** Shape of the API exposed on `window.api` via the preload contextBridge. */
 export interface PhotoStarsApi {
   ping: () => Promise<string>;
@@ -77,6 +112,10 @@ export interface PhotoStarsApi {
   getHiResPreview: (path: string, type: ImageFileType) => Promise<string | undefined>;
   /** Move the given files to the system Recycle Bin. Returns paths that failed. */
   trashFiles: (paths: string[]) => Promise<string[]>;
+  /** Persist one manual-rating correction as a training sample (fire-and-forget). */
+  recordCorrection: (record: CorrectionRecord) => Promise<void>;
+  /** Read back the full persisted correction dataset. */
+  readCorrections: () => Promise<CorrectionRecord[]>;
 }
 
 declare global {

@@ -112,11 +112,36 @@ export const useImageStore = create<ImageStore>((set) => ({
     }),
   clearSelection: () => set({ selected: new Set<string>() }),
   setManualStars: (path, stars) =>
-    set((state) => ({
-      images: state.images.map((i) =>
-        i.path === path ? { ...i, manualStars: stars ?? undefined, written: false } : i
-      ),
-    })),
+    set((state) => {
+      const img = state.images.find((i) => i.path === path);
+      // Persist the choice as a training sample. Only real ratings (not a clear
+      // back to derived) carry a supervised signal worth learning from.
+      if (img && stars !== null) {
+        window.api.recordCorrection({
+          ts: Date.now(),
+          path,
+          suggestedStars: img.manualStars ?? img.derivedStars,
+          userStars: stars,
+          qualityScore: img.qualityScore,
+          sharpnessScore: img.sharpnessScore,
+          exposureScore: img.exposureScore,
+          aestheticsScore: img.aestheticsScore,
+          faceSharpnessScore: img.faceSharpnessScore,
+          bokehRatio: img.bokehRatio,
+          isPortrait: img.isPortrait,
+          burstRank: img.burstRank,
+          burstGroup: img.burstGroup,
+          facesDetected: img.eyeStatus?.facesDetected,
+          allEyesOpen: img.eyeStatus?.allEyesOpen,
+          badExpression: img.eyeStatus?.badExpression,
+        });
+      }
+      return {
+        images: state.images.map((i) =>
+          i.path === path ? { ...i, manualStars: stars ?? undefined, written: false } : i
+        ),
+      };
+    }),
   toggleMarkForDelete: (path) =>
     set((state) => ({
       images: state.images.map((i) =>

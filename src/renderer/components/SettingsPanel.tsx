@@ -1,5 +1,7 @@
 import React from 'react';
 import { useScoringStore } from '../store/scoringStore';
+import { MIN_SAMPLES, type LearnedModel } from '../../shared/learning';
+import { relearnAndApply } from '../lib/relearn';
 
 function Slider({
   label, value, min, max, step = 0.01, format,
@@ -40,6 +42,84 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** "Learn from my ratings": reads the persisted corrections, fits a personalised
+ * model, and applies it to the active scoring config. Fully transparent — shows
+ * how many samples it learned from and how well it reproduces the user's picks. */
+function LearningSection(): React.JSX.Element {
+  const learnedModel = useScoringStore((s) => s.learnedModel);
+  const [status, setStatus] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [preview, setPreview] = React.useState<LearnedModel | null>(null);
+
+  const learn = React.useCallback(async () => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const model = await relearnAndApply();
+      setPreview(model);
+      if (!model.weightsPersonalised && !model.portraitWeightsPersonalised) {
+        setStatus(
+          `Only ${model.sampleCount} rating${model.sampleCount === 1 ? '' : 's'} so far — ` +
+            `need ${MIN_SAMPLES} per type before personalising. Keep culling!`
+        );
+        return;
+      }
+      const agree =
+        model.burstAgreement !== undefined
+          ? ` · matches ${Math.round(model.burstAgreement * 100)}% of your burst picks`
+          : '';
+      setStatus(`Applied — learned from ${model.sampleCount} ratings${agree}.`);
+    } catch {
+      setStatus('Could not read the rating history.');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const shown = preview ?? learnedModel;
+
+  return (
+    <Section title="Learn from my ratings">
+      <p className="text-[10px] text-stone-400 dark:text-zinc-500">
+        Fits the weights above to the star ratings you actually give, gradually personalising
+        as you cull more. Regularised toward the defaults, so it never swings wildly.
+      </p>
+      {shown && (
+        <div className="rounded-md bg-stone-100 px-3 py-2 text-[11px] dark:bg-zinc-800">
+          <div className="flex justify-between text-stone-600 dark:text-zinc-400">
+            <span>Samples</span>
+            <span className="font-mono text-stone-900 dark:text-zinc-100">
+              {shown.sampleCount} ({shown.portraitSampleCount} portrait)
+            </span>
+          </div>
+          <div className="mt-1 flex justify-between text-stone-600 dark:text-zinc-400">
+            <span>Learned weights</span>
+            <span className="font-mono text-stone-900 dark:text-zinc-100">
+              {`${(shown.weights.sharpness * 100).toFixed(0)}/${(shown.weights.exposure * 100).toFixed(0)}/${(shown.weights.aesthetics * 100).toFixed(0)}`}
+            </span>
+          </div>
+          {shown.burstAgreement !== undefined && (
+            <div className="mt-1 flex justify-between text-stone-600 dark:text-zinc-400">
+              <span>Burst-pick agreement</span>
+              <span className="font-mono text-stone-900 dark:text-zinc-100">
+                {Math.round(shown.burstAgreement * 100)}%
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      <button
+        onClick={learn}
+        disabled={busy}
+        className="w-full rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+      >
+        {busy ? 'Learning…' : 'Learn from my ratings'}
+      </button>
+      {status && <p className="text-[10px] text-stone-500 dark:text-zinc-400">{status}</p>}
+    </Section>
+  );
+}
+
 export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { config, setWeights, setPortraitWeights, setConfig, setHardCaps, setSharpnessRange, reset } =
     useScoringStore();
@@ -58,6 +138,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }): React.JSX.E
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+
+        <LearningSection />
 
         <Section title="General weights">
           <Slider label="Sharpness"  value={config.weights.sharpness}  min={0} max={1}

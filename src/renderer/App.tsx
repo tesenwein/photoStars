@@ -9,6 +9,7 @@ import { BurstGroup } from './components/BurstGroup';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Logo } from './components/Logo';
 import { useTheme } from './useTheme';
+import { relearnAndApply } from './lib/relearn';
 import { assignRelativeStars } from '../shared/relativeRating';
 import { bucketBursts } from '../shared/burst';
 import { recomputeStars } from '../shared/scoring';
@@ -55,6 +56,7 @@ export function App(): React.JSX.Element {
 
   const { theme, toggle: toggleTheme } = useTheme();
   const scoringConfig = useScoringStore((s) => s.config);
+  const distribution  = useScoringStore((s) => s.distribution);
 
   // Re-derive stars from raw scores using user-configurable weights.
   // This runs purely in the renderer so changes take effect instantly.
@@ -71,8 +73,8 @@ export function App(): React.JSX.Element {
       ...img,
       qualityScore: reScore(img).qualityScore,
     }));
-    return assignRelativeStars(scored);
-  }, [images, relativeRating, reScore]);
+    return assignRelativeStars(scored, distribution ? { distribution } : undefined);
+  }, [images, relativeRating, reScore, distribution]);
 
   // Precompute suggested stars once per (images, config, relative curve) so the
   // sort comparator and filters read O(1) instead of re-scoring per comparison.
@@ -194,6 +196,9 @@ export function App(): React.JSX.Element {
     clearSelection();
     setImages([]);
     setStatus('Scanning…');
+    // Fold everything learned from past ratings into the weights/curve before
+    // this shoot is scored — silent, regularised, never overrides a manual edit.
+    void relearnAndApply().catch(() => {});
     const imgs = await window.api.ingestFolder(picked);
     setImages(imgs);
     setStatus(imgs.length === 0 ? 'No supported images found.' : '');

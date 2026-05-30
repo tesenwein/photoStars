@@ -1,8 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol } from 'electron';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { IpcChannels } from '../shared/ipc';
+import { IpcChannels, type CorrectionRecord } from '../shared/ipc';
 import { registerIngestHandlers } from './ingest/ingestHandler';
+import { appendCorrection, readCorrections } from './learning/corrections';
 import { sidecar } from './sidecar/sidecarManager';
 import { exiftoolInstance } from './exiftool/exiftool';
 
@@ -49,6 +50,12 @@ function registerIpcHandlers(): void {
     if (result.canceled || result.filePaths.length === 0) return undefined;
     return result.filePaths[0];
   });
+
+  ipcMain.handle(IpcChannels.recordCorrection, async (_e, record: CorrectionRecord) => {
+    await appendCorrection(record);
+  });
+
+  ipcMain.handle(IpcChannels.readCorrections, async () => readCorrections());
 
   registerIngestHandlers();
 }
