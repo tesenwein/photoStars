@@ -5,6 +5,8 @@ import { Toggle } from './controls';
 export function MiscFilters(): React.JSX.Element {
   const portraitOnly    = useImageStore((s) => s.filter.portraitOnly);
   const unwrittenOnly   = useImageStore((s) => s.filter.unwrittenOnly);
+  const modifiedOnly    = useImageStore((s) => s.filter.modifiedOnly);
+  const rawOnly         = useImageStore((s) => s.filter.rawOnly);
   const relativeRating  = useImageStore((s) => s.relativeRating);
   const setFilter       = useImageStore((s) => s.setFilter);
   const setRelative     = useImageStore((s) => s.setRelativeRating);
@@ -16,6 +18,16 @@ export function MiscFilters(): React.JSX.Element {
       </Toggle>
       <Toggle checked={unwrittenOnly} onChange={(v) => setFilter({ unwrittenOnly: v })}>
         Unwritten only
+      </Toggle>
+      <Toggle
+        checked={modifiedOnly}
+        onChange={(v) => setFilter({ modifiedOnly: v })}
+        title="Only images you've touched — rated with stars or flagged keep/reject"
+      >
+        Modified only
+      </Toggle>
+      <Toggle checked={rawOnly} onChange={(v) => setFilter({ rawOnly: v })} title="Only RAW files">
+        RAW only
       </Toggle>
       <Toggle
         checked={relativeRating}

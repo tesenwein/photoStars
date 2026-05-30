@@ -30,6 +30,10 @@ export type ExposureFilter = 'all' | 'ok' | 'overexposed' | 'underexposed';
 export interface FilterState {
   minStars: number;
   unwrittenOnly: boolean;
+  /** Only images the user has touched (manual stars or a cull flag). */
+  modifiedOnly: boolean;
+  /** Only RAW files. */
+  rawOnly: boolean;
   /** Burst window in seconds — shots within this window are grouped. */
   burstWindowSec: number;
   eyes: EyeFilterState;
@@ -77,6 +81,8 @@ export const useImageStore = create<ImageStore>((set) => ({
   filter: {
     minStars: 0,
     unwrittenOnly: false,
+    modifiedOnly: false,
+    rawOnly: false,
     burstWindowSec: 3,
     eyes: {
       facesOnly: false, eyesOpenOnly: false, eyesClosedOnly: false, hideFlagged: false,
@@ -188,9 +194,17 @@ export function cullOf(img: PhotoImage): 'keep' | 'neutral' | 'reject' {
   return img.cullStatus ?? (img.markedForDelete ? 'reject' : 'neutral');
 }
 
+/** True when the user has actively touched this image: set a manual star rating
+ * or flagged it keep/reject (anything beyond the untouched default). */
+export function isModified(img: PhotoImage): boolean {
+  return img.manualStars !== undefined || cullOf(img) !== 'neutral';
+}
+
 /** True when an image passes the non-star/non-burst filters (cull, exposure, portrait, faces). */
 export function passesImageFilters(filter: FilterState, img: PhotoImage): boolean {
   if (filter.unwrittenOnly && img.written) return false;
+  if (filter.modifiedOnly && !isModified(img)) return false;
+  if (filter.rawOnly && img.type !== 'raw') return false;
   if (filter.cull !== 'all' && cullOf(img) !== filter.cull) return false;
   if (filter.exposure !== 'all' && img.exposureHint !== filter.exposure) return false;
   if (filter.portraitOnly && !img.isPortrait) return false;
