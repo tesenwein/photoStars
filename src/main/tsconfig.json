@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../dist",
+    "target": "es2022",
+    "module": "commonjs",
+    "lib": ["es2022"],
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "rootDir": "../"
+  },
+  "include": ["../**/*"],
+  "exclude": ["../renderer/**/*"]
+}

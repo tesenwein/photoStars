@@ -1,0 +1,41 @@
+appId: com.photostars.app
+productName: PhotoStars
+copyright: Copyright © 2025
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+# The sidecar (analyzer.py + model files) must live on the real filesystem so the
+# spawned Python process can read it — files inside app.asar are not accessible to
+# external processes. Unpack the whole sidecar dir to app.asar.unpacked.
+asarUnpack:
+  - dist/main/sidecar/**
+
+# exiftool binary (add your platform binary to build/exiftool/ before packaging).
+# See: https://exiftool.org/install.html
+# extraFiles:
+#   - from: build/exiftool/exiftool
+#     to: resources/exiftool/exiftool
+
+mac:
+  category: public.app-category.photography
+  target:
+    - dmg
+    - zip
+
+win:
+  target:
+    - nsis
+
+linux:
+  target:
+    - AppImage
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
